@@ -54,14 +54,16 @@ async def main(loop):
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
-    loop.create_task(main(loop))
     try:
-        loop.run_forever()
+        loop.run_until_complete(main(loop))
         result = 0
+    except InterruptedException as ex:
+        loop.run_until_complete(mqtt.stop_broker())
     except Exception as ex:
         LOGGER.exception(ex)
         result = -1
     finally:
+        loop.stop()
         loop.close()
     sys.exit(result)
 

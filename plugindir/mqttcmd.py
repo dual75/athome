@@ -1,3 +1,7 @@
+# Copyright (c) 2017 Alessandro Duca
+#
+# See the file license.txt for copying permission.
+
 import asyncio
 import logging
 
@@ -6,7 +10,7 @@ from athome import mqtt
 LOGGER = logging.getLogger(__name__)
 
 async def engage(loop):
-    client = mqtt.local_client()
+    client = await mqtt.local_client()
     await client.subscribe([
             ('$ATHOME/command', mqtt.QOS_1)
         ])
