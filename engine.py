@@ -47,18 +47,23 @@ def init_env():
 init_env()
 async def main(loop):
     LOGGER.info("in main(loop)")
-    await asyncio.gather(
-        athome.plugins.watch_plugin_dir(config['plugins'], loop),
-        athome.mqtt.run_broker(config['hbmqtt'])
+    try:
+        global_task = asyncio.gather(
+            athome.plugins.watch_plugin_dir(config['plugins'], loop),
+            athome.mqtt.start_broker(config['hbmqtt'])
         )
+        global_task.add_done_callback(athome.mqtt.stop_broker)
+        await global_task
+    finally:
+        if not global_task.done():
+            global_task.cancel()
+        
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(main(loop))
         result = 0
-    except InterruptedException as ex:
-        loop.run_until_complete(mqtt.stop_broker())
     except Exception as ex:
         LOGGER.exception(ex)
         result = -1

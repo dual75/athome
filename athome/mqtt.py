@@ -29,7 +29,7 @@ async def local_client():
     return result
 
 
-async def run_broker(config_parm):
+async def start_broker(config_parm):
     """Start hbmqtt broker
 
     Parameters
