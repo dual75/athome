@@ -1,0 +1,19 @@
+hbmqtt:
+    listeners:
+        default:
+            max-connections: 50000
+            type: tcp
+        local:
+            bind: 127.0.0.1:1883
+        my-ws-1:
+            bind: 0.0.0.0:8080
+            type: ws
+    timeout-disconnect-delay: 2
+    auth:
+        plugins: ['auth.anonymous']
+        allow-anonymous: true
+
+plugins:
+    reload_interval: 8
+    plugins_dir: 'plugindir'
+    
