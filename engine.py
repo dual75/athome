@@ -26,7 +26,9 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import os, sys
+import signal
 import asyncio
+import functools
 import logging
 
 import yaml
@@ -43,13 +45,16 @@ def init_env():
     logging.getLogger('transitions').setLevel(logging.WARN)
     LOGGER.debug(sys.path)
 
+def ask_exit(signame):
+    LOGGER.info("got signal %s: exit" % signame)
+    loop.stop()
 
 init_env()
-async def main(loop):
+async def main():
     LOGGER.info("in main(loop)")
     try:
         global_task = asyncio.gather(
-            athome.plugins.watch_plugin_dir(config['plugins'], loop),
+            athome.plugins.watch_plugin_dir(config['plugins']),
             athome.mqtt.start_broker(config['hbmqtt'])
         )
         global_task.add_done_callback(athome.mqtt.stop_broker)
@@ -62,6 +67,9 @@ async def main(loop):
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     try:
+        for signame in ('SIGINT', 'SIGTERM'):
+            loop.add_signal_handler(getattr(signal, signame),
+                            functools.partial(ask_exit, signame))
         loop.run_until_complete(main(loop))
         result = 0
     except Exception as ex:
