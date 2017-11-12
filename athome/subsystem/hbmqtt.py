@@ -10,10 +10,8 @@ from hbmqtt.broker import Broker
 from hbmqtt.client import MQTTClient, ClientException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
-from athome.core import config
-
-broker = None
-config = None
+_broker = None
+_loop = None
 
 LOCAL_CLIENT_CONFIG = {
         'keep_alive': 30,
@@ -22,13 +20,35 @@ LOCAL_CLIENT_CONFIG = {
 
 async def local_client():
     """Create a mqtt client connected to the local broker"""
-
-    config_ = config['subsystem']['hbmqtt']
     
     result = MQTTClient(config=LOCAL_CLIENT_CONFIG)
     await result.connect(
-        'mqtt://{}/'.format(config_['listeners']['local']['bind']),
+        'mqtt://{}/'.format(config['listeners']['local']['bind']),
         cleansession=True
         )
     return result
 
+
+async def startup(loop, config, in_queue):
+    """Start hbmqtt broker
+
+    Parameters
+    ----------
+    config_parm: dict
+        Python dictionary holding broker configuration
+    """
+    
+    global _broker, _loop
+    _loop = loop
+    _broker = Broker(config)
+    await _broker.start()
+    in_queue.get()
+
+
+async def shutdown():
+    """Stop hbmqtt"""
+    global _broker 
+    if _broker:
+        await _broker.shutdown()
+    _broker = None
+    

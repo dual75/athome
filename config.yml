@@ -1,19 +1,40 @@
-hbmqtt:
-    listeners:
-        default:
-            max-connections: 50000
-            type: tcp
-        local:
-            bind: 127.0.0.1:1883
-        my-ws-1:
-            bind: 0.0.0.0:8080
-            type: ws
-    timeout-disconnect-delay: 2
-    auth:
-        plugins: ['auth.anonymous']
-        allow-anonymous: true
+core: 
 
-plugins:
-    reload_interval: 8
-    plugins_dir: 'plugindir'
-    
+    config_poll_interval: 5
+
+
+subsystem:
+           
+    hbmqtt:
+        enable: true
+        config:
+            listeners:
+                default:
+                    max-connections: 50000
+                    type: tcp
+                local:
+                    bind: 127.0.0.1:1883
+                local-ws:
+                    bind: 0.0.0.0:8080
+                    type: ws
+            timeout-disconnect-delay: 2
+            auth:
+                plugins: ['auth.anonymous']
+                allow-anonymous: true
+
+    mqttbridge:
+        enable: true
+        config: 
+            url: null
+            username: null
+            password: null
+            topics: [
+                    'test',
+                    'another'
+                    ]
+ 
+    plugins:
+        enable: true
+        config:
+            plugins_dir: 'plugindir'
+            plugin_poll_interval: 8

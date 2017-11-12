@@ -1,4 +1,5 @@
-__all__ = ['plugins', 'mqtt']
+__all__ = ['core', 'mqtt']
 
-from . import plugins
+from . import core
 from . import mqtt
+

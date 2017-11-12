@@ -1,29 +1,7 @@
-# Copyright (c) 2017,2017 Alessandro Duca <alessandro.duca@gmail.com>
-# All rights reserved.
-# 
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-# 
-# 1. Redistributions of source code must retain the above copyright notice,
-#   this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright
-#   notice, this list of conditions and the following disclaimer in the
-#   documentation and/or other materials provided with the distribution.
-# 3. Neither the name of mosquitto nor the names of its
-#   contributors may be used to endorse or promote products derived from
-#   this software without specific prior written permission.
-# 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+
+# Copyright (c) 2017 Alessandro Duca
+#
+# See the file license.txt for copying permission.
 
 import os, sys
 import signal
@@ -40,43 +18,56 @@ LOGGER = logging.getLogger(__name__)
 config = yaml.load(open('config.yml', 'rb'))
 
 def init_env():
+    """Initialize logging an sys.path"""
+
     logging.basicConfig(level=logging.DEBUG)
     logging.getLogger('hbmqtt').setLevel(logging.INFO)
     logging.getLogger('transitions').setLevel(logging.WARN)
     LOGGER.debug(sys.path)
 
 def ask_exit(signame):
+    """Handle interruptions via posix signals"""
+
     LOGGER.info("got signal %s: exit" % signame)
-    loop.stop()
+    athome.core.stop_running()
 
-init_env()
-async def main():
-    LOGGER.info("in main(loop)")
-    try:
-        global_task = asyncio.gather(
-            athome.plugins.watch_plugin_dir(config['plugins']),
-            athome.mqtt.start_broker(config['hbmqtt'])
-        )
-        global_task.add_done_callback(athome.mqtt.stop_broker)
-        await global_task
-    finally:
-        if not global_task.done():
-            global_task.cancel()
-        
+def activate_main_tasks(loop):
+    """Create main asyncio tasks
 
-if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
+    Parameters
+    ----------
+    loop: asyncio loop
+    """
+
+    LOGGER.info("in activate_main_tasks(loop)")
+    result = asyncio.gather(
+        athome.mqtt.start_broker(config['subsystem']['hbmqtt']),
+        athome.plugins.watch_plugin_dir(config['subsytem']['plugins'], loop)
+    )
+    return result
+
+def install_signal_handlers(loop):
+    """Install signal handlers for SIGINT and SIGTERM"""
+
+    for signame in ('SIGINT', 'SIGTERM'):
+        loop.add_signal_handler(getattr(signal, signame),
+            functools.partial(ask_exit, signame))
+
+def main():
+    init_env()
     try:
-        for signame in ('SIGINT', 'SIGTERM'):
-            loop.add_signal_handler(getattr(signal, signame),
-                            functools.partial(ask_exit, signame))
-        loop.run_until_complete(main(loop))
+        loop = athome.core.startup(config)
+        install_signal_handlers(loop)
+        athome.core.run_until_complete()
         result = 0
     except Exception as ex:
         LOGGER.exception(ex)
         result = -1
     finally:
-        loop.stop()
-        loop.close()
+        athome.core.shutdown()
     sys.exit(result)
 
+ 
+if __name__ == '__main__':
+    main()
+ 
