@@ -23,7 +23,7 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: true
+        enable: false
         config: 
             url: null
             username: null
@@ -37,4 +37,4 @@ subsystem:
         enable: true
         config:
             plugins_dir: 'plugindir'
-            plugin_poll_interval: 8
+            plugin_poll_interval: 5

@@ -8,25 +8,34 @@ import concurrent
 
 LOGGER = logging.getLogger(__name__)
 
-__loop = None
-config = None
+_loop = None
+_config = None
 
-async def startup(loop, config_, in_queue):
-    global __loop, config
-    __loop, config = loop, config_
+def initialize(config):
+    """Perform subsystem initialization"""
+
+    global _broker, _config
+    _config = config
+
+
+async def run(loop, in_queue):
+    global _loop, config
+    _loop = loop
     try:
         while True:
-            try:
-                msg = in_queue.get_nowait()
-                if msg:
-                    break   
-            except asyncio.QueueEmpty:
+            msg = await in_queue.get()
+            if msg == 'start':
+                LOGGER.debug('Subsystem {} started'.format(__name__))
+            if msg == 'stop':
                 pass
-
-            LOGGER.debug('Subsystem cycle')
-            await asyncio.sleep(5)
+            elif msg == 'restart':
+                pass
+            elif msg == 'shutdown':
+                await shutdown()
+                break
     except concurrent.futures.CancelledError as ex:
-        pass
+        LOGGER.error('Caught CancelledError in {}'.format(__name__))
+
 
 async def shutdown():
     LOGGER.debug('Shutting down')

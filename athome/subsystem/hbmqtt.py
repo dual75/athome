@@ -4,51 +4,44 @@
 
 import os, sys
 import asyncio
+import logging
+import concurrent
 
 from hbmqtt.broker import Broker
 
-from hbmqtt.client import MQTTClient, ClientException
-from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
+import athome
 
-_broker = None
-_loop = None
+LOGGER = logging.getLogger(__name__)
 
-LOCAL_CLIENT_CONFIG = {
-        'keep_alive': 30,
-        'default_qos': QOS_0
-    }
+class Subsystem(athome.core.SystemModule):
+    """Subsystem embedding hbmqtt broker"""
 
-async def local_client():
-    """Create a mqtt client connected to the local broker"""
-    
-    result = MQTTClient(config=LOCAL_CLIENT_CONFIG)
-    await result.connect(
-        'mqtt://{}/'.format(config['listeners']['local']['bind']),
-        cleansession=True
-        )
-    return result
+    def on_initialize(self, config):
+        """Perform subsystem initialization"""
 
+        super().on_initialize(config)
+        self.broker = None
 
-async def startup(loop, config, in_queue):
-    """Start hbmqtt broker
+    def on_start(self):
+        """Instantiate a fresh broker"""
+        
+        self.broker = Broker(self.config)
 
-    Parameters
-    ----------
-    config_parm: dict
-        Python dictionary holding broker configuration
-    """
-    
-    global _broker, _loop
-    _loop = loop
-    _broker = Broker(config)
-    await _broker.start()
-    in_queue.get()
+    async def run(self):
+        """Start broker"""
+        
+        await self.broker.start()
 
-
-async def shutdown():
-    """Stop hbmqtt"""
-    global _broker 
-    if _broker:
-        await _broker.shutdown()
-    _broker = None
-    
+    def on_stop(self):
+        """On subsystem stop shutdown broker"""
+        
+        self.broker.shutdown()
+        self.broker = None
+        
+    def on_shutdown(self):
+        """On subsystem shutdown shutdown broker if existing"""
+        
+        if self.broker:
+            self.broker.shutdown()
+        self.broker = None
+        

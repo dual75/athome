@@ -1,92 +1,164 @@
 import asyncio
 import logging
 import importlib
+from functools import partial
 
 LOGGER = logging.getLogger(__name__)
 
-_loop = None
-_subsystems = {}
+from transitions import Machine
 
-config = None
+class SystemModule():
 
+    states = [
+                'loaded',
+                'ready',
+                'running',
+                'closed',
+                'failure'
+              ]
 
-class Subsystem:
-    STARTUP_CORO = 'startup'
-    SHUTDOWN_CORO = 'shutdown'
+    transitions = [
+            {
+                'trigger':'initialize',
+                'source':'loaded',
+                'dest':'ready',
+                'before': ['on_initialize']
+                },
+            {
+                'trigger':'start',
+                'source':'ready',
+                'dest':'running',
+                'before': ['_on_start']
+                },
+            {
+                'trigger':'stop',
+                'source':'running',
+                'dest':'ready',
+                'before': ['_on_stop']
+                },
+            {
+                'trigger':'shutdown',
+                'source':['loaded', 'ready', 'running'],
+                'dest':'closed',
+                'before': ['_on_shutdown']
+                }
+        ]
 
-    def __init__(self, name, module):
+    def __init__(self, loop, name):
         self.name = name
-        self.module = module
+        self.machine = Machine(model=self,
+                            states=SystemModule.states,
+                            transitions=SystemModule.transitions,
+                            initial='loaded')
+        self.loop = loop
+        self.config = None
         self.run_task = None
-        self.in_queue = asyncio.Queue()
-        self._shutdown_task = None
+        self.in_queue, self.out_queue = asyncio.Queue(), asyncio.Queue()
 
-    def startup(self, config):
-        startup_coro = getattr(self.module, self.STARTUP_CORO)
-        self.run_task = _loop.create_task(startup_coro(_loop, 
-                                                        config,
-                                                        self.in_queue) 
-                                            )
-        LOGGER.debug('Subsystem {} started'.format(self.name))
+    def on_initialize(self, config):
+        self.config = config
 
-    def shutdown(self):
-        shutdown_coro = getattr(self.module, self.SHUTDOWN_CORO, None)
+    async def run(self):
+        LOGGER.debug("run does nothing by default")
+
+    def on_start(self):
+        raise NotImplementedError
+
+    def on_stop(self):
+        raise NotImplementedError
+
+    def on_shutdown(self):
+        LOGGER.debug("on_shutdown does nothing by default")
+
+    def _on_start(self):
+        if self.state is not 'ready':
+            raise Exception('Subsystem not in "running" state')
+
+        async def start_coro():
+            self.on_start()
+            await self.run()
+
+        self.run_task = asyncio.ensure_future(start_coro(), loop=self.loop)
+
+    def _on_stop(self):
+        self.on_stop()
+        asyncio.wait(self.run_task, loop=self.loop)
+        self.run_task = None
+
+    def _on_shutdown(self):
+        LOGGER.debug('Now awaiting shutdown_task for %s' % self.name)
         try:
-            LOGGER.debug('Now awaiting shutdown_task for subsystem %s' % 
-                         self.module.__name__)
-            _loop.run_until_complete(shutdown_coro())
-        except Exception as e:
-            LOGGER.exception(e)
-            
-        if not self.run_task.done():
-            self.run_task.cancel()
+            if self.state == 'running':
+                self.on_stop()
+            self.on_shutdown()
+        except Exception as ex:
+            LOGGER.exception("Subsystem %s shutdown in error" % subsystem.name, ex)
+
+        if self.run_task and not self.run_task.done():
+            LOGGER.info("Now canceling run_task for subsystem")
+            try:
+                asyncio.wait_for(self.run_task, timeout=2.0, loop=self.loop)
+            except asyncio.TimeoutError as ex:
+                LOGGER.exception("Subsystem %s run_task canceled" % subsystem.name)
+        
+
+class Core(SystemModule):
+
+    __instance = None
+
+    def __new__(cls):
+        if Core.__instance is None:
+            Core.__instance = object.__new__(cls)
+            Core.__instance.__initialized = False
+        return Core.__instance
+
+    def __init__(self):
+        if not self.__initialized:
+            loop = asyncio.get_event_loop()
+            super().__init__(loop, 'core')
+            self.subsystems = {}
+            self.__initialized = True
+    
+    def on_initialize(self, config):
+        super().on_initialize(config)
+
+        # Load subsystems
+        for name in [name for name in config['subsystem'] 
+                            if config['subsystem'][name]['enable']
+                            ]:
+            LOGGER.debug('Loading module {}'.format(name))
+            module_name = 'athome.subsystem.{}'.format(name)
+            module = importlib.import_module(module_name)
+            subsystem_class = getattr(module, 'Subsystem')
+            subsystem = self.subsystems[name] = subsystem_class(self.loop, name)
+            LOGGER.info('Starting subsystem %s' % name)
+            subsystem.initialize(config['subsystem'][name]['config'])
+
+    def on_start(self):
+        for subsystem in self.subsystems.values():
+            subsystem.start()
+
+    async def run(self):
+        await asyncio.gather(*[
+            subsystem.run_task
+                for subsystem in self.subsystems.values()
+            ])
+        
+    def on_stop(self):
+        subsystems = self.subsystems.values()
+        for subsystem in self.subsystems.values():
+            subsystem.stop()
+
+    def on_shutdown(self):
+        for subsystem in self.subsystems.values():
+            subsystem.shutdown()
         try:
-            LOGGER.debug('Now awaiting _module_coro %s' % self.module.__name__)
-            _loop.run_until_complete(self.run_task)
-        except Exception as e:
-            LOGGER.exception(e)
+            self.loop.stop()
+        finally:
+            self.loop.close()
 
-
-def startup(config_):
-    global _loop, config
-    _loop = asyncio.get_event_loop()
-    config = config_
-
-    for name in [name for name in config['subsystem'] 
-                        if config['subsystem'][name]['enable']
-                        ]:
-        LOGGER.debug('Loading module {}'.format(name))
-        module_name = 'athome.subsystem.{}'.format(name)
-        module = importlib.import_module(module_name)
-        subsystem = _subsystems[name] = Subsystem(name, module)
-        LOGGER.info('Starting subsystem %s' % name)
-        subsystem.startup(config['subsystem'][name]['config'])
-    return _loop
-
-
-def run_until_complete():
-    tasks = [subsystem.run_task for subsystem in _subsystems.values()]
-    task = asyncio.gather(*tasks)
-    _loop.run_until_complete(task)
-
-
-def stop_running():
-    for subsystem in _subsystems.values():
-        subsystem.in_queue.put_nowait('stop')
-
-
-def shutdown():
-    global _loop, config
-    for subsystem in _subsystems.values():
-        shutdown_task = _loop.create_task(subsystem.shutdown())
-        try:
-            _loop.run_until_complete(shutdown_task)
-        except Exception as e:
-            LOGGER.error('Error while shutting down subsystem {}'.format(subsystem.name))
-            LOGGER.exception(e)
-    if _loop:
-        _loop.stop()
-        _loop.close()
-    _loop = config = None
+    def run_until_complete(self):
+        self.start()
+        self.loop.run_until_complete(self.run_task)
 
         

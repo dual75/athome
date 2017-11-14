@@ -1,4 +1,3 @@
-
 # Copyright (c) 2017 Alessandro Duca
 #
 # See the file license.txt for copying permission.
@@ -16,6 +15,7 @@ import athome
 LOGGER = logging.getLogger(__name__)
 
 config = yaml.load(open('config.yml', 'rb'))
+core = None
 
 def init_env():
     """Initialize logging an sys.path"""
@@ -25,46 +25,38 @@ def init_env():
     logging.getLogger('transitions').setLevel(logging.WARN)
     LOGGER.debug(sys.path)
 
-def ask_exit(signame):
+async def ask_exit(signame):
     """Handle interruptions via posix signals"""
 
     LOGGER.info("got signal %s: exit" % signame)
-    athome.core.stop_running()
+    core.stop()
 
-def activate_main_tasks(loop):
-    """Create main asyncio tasks
-
-    Parameters
-    ----------
-    loop: asyncio loop
-    """
-
-    LOGGER.info("in activate_main_tasks(loop)")
-    result = asyncio.gather(
-        athome.mqtt.start_broker(config['subsystem']['hbmqtt']),
-        athome.plugins.watch_plugin_dir(config['subsytem']['plugins'], loop)
-    )
-    return result
 
 def install_signal_handlers(loop):
     """Install signal handlers for SIGINT and SIGTERM"""
 
-    for signame in ('SIGINT', 'SIGTERM'):
-        loop.add_signal_handler(getattr(signal, signame),
-            functools.partial(ask_exit, signame))
+    signames = ('SIGINT', 'SIGTERM')
+    if os.name != 'nt':
+        for signame in signames:
+            loop.add_signal_handler(getattr(signal, signame),
+                functools.partial(ask_exit, signame))
 
 def main():
+    global core
     init_env()
+    core = athome.core.Core()
     try:
-        loop = athome.core.startup(config)
-        install_signal_handlers(loop)
-        athome.core.run_until_complete()
+        core.initialize(config)
+        core.run_until_complete()
+        result = 0
+    except KeyboardInterrupt as ex:
+        LOGGER.info("Caught CTRL-C")
         result = 0
     except Exception as ex:
         LOGGER.exception(ex)
         result = -1
     finally:
-        athome.core.shutdown()
+        core.shutdown()
     sys.exit(result)
 
  

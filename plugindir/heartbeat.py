@@ -16,15 +16,18 @@ LOGGER = logging.getLogger(__name__)
 client = None
 
 async def engage(loop):
+    global client
     client = await athome.mqtt.local_client()
-    while loop.is_running():
+    while client:
         await asyncio.sleep(5)
-    LOGGER.info('tumping')
-    await client.publish('$ATHOME/heartbeat', b'tump!')
+        LOGGER.info('tumping')
+        await client.publish('$ATHOME/heartbeat', b'tump!')
 
 async def shutdown():
+    global client
     LOGGER.debug('shutdown!')
     if client:
         client.disconnect()
+        client = None
         
     
