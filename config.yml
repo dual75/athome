@@ -23,7 +23,7 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: false
+        enable: true
         config:
             brokers:
                 single:

@@ -4,6 +4,7 @@
 
 import asyncio
 import concurrent
+import contextlib
 import logging
 import os
 import sys
@@ -22,29 +23,31 @@ class Republisher(object):
         self.subs = subs
         self.url = url
         self.client = None
-        self.subscribe_task = None
+        self.listen_task = None
 
     async def start(self):
         self.client = MQTTClient()
         await self.client.connect(self.url)
         await self.client.subscribe(self.topics)
-        self.subscribe_task = loop.ensure_future(self.listen())
+        self.listen_task = loop.ensure_future(self.listen())
 
     def stop(self):
-        self.subscribe_task.cancel()
-        try:
-            self.subscribe_task.exception()
-        finally:
-            self.client.disconnect()
-
+        self.listen_task.cancel()
+        LOGGER.debug('Task exit exception: ' + str(self.listen_task.exception()))
+            
     async def listen(self):
-        while self.subs.running:
-            message = await self.client.deliver_message()
-            self.subs.forward(self.url, message)
+        try:
+            while self.subs.running:
+                message = await self.client.deliver_message()
+                await self.subs.forward(self.url, message)
+        except concurrent.futures.CancelledError as ex:
+            LOGGER.info("Republisher task canceled")
+        finally:
+            await self.client.disconnect()
 
     async def forward(self, message):
         packet = message.publish_packet
-        self.client.publish(packet.variable_header.topic_name,
+        await self.client.publish(packet.variable_header.topic_name,
                                 packet.payload.data)                                    
 
 
@@ -67,7 +70,9 @@ class Subsystem(SystemModule):
         if all(k in broker for k in ('username', 'password')):
             result.append('{}:{}@'.format(broker['username'], broker['password']))
         result.append("{}:{}".format(broker['host'], broker['port']))
-        return "".join(result)
+        result = "".join(result)
+        LOGGER.debug('Composed url %s' % result)
+        return result
             
     def on_start(self, loop):
         """Initialize or reinitializa subsystem state"""
@@ -93,8 +98,7 @@ class Subsystem(SystemModule):
                 self.republishers.append(republisher)
                 await republisher.start()
                 tasks.append(republisher.run_task)
-            await asyncio.gather(tasks)
-                
+            await asyncio.gather(tasks) 
         except ClientException as ce:
             LOGGER.error("Client exception: %s" % ce)
           
