@@ -23,14 +23,19 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: false
-        config: 
-            url: null
-            username: null
-            password: null
+        enable: true
+        config:
+            brokers:
+                single:
+                    protocol: 'mqtt'
+                    host: 'm23.cloudmqtt.com'
+                    port: 11702
+                    username: 'oleffxza'
+                    password: '8ViMtnkje343'
             topics: [
-                    'test',
-                    'another'
+                        ['test', 0], 
+                        ['another', 0],
+                        ['$ATHOME/heartbeat', 0]
                     ]
  
     plugins:

@@ -11,6 +11,8 @@ import importlib
 import contextlib
 from functools import partial
 
+from transitions import Machine
+
 import athome
 
 ENGAGE_METHOD   = 'engage'
@@ -23,7 +25,39 @@ _plugins = dict()
 
 
 class Plugin(object):
+
+    states = [
+        'ready',
+        'running',
+        'closed'
+    ]
+
+    transitions = [
+            {
+                'trigger':'start',
+                'source':'ready',
+                'dest':'running',
+                'before': ['_on_start']
+                },
+            {
+                'trigger':'stop',
+                'source':'running',
+                'dest':'ready',
+                'before': ['_on_stop']
+                },
+            {
+                'trigger':'close',
+                'source': ['loaded', 'ready', 'running'],
+                'dest':'ready',
+                'before': ['_on_close']
+                }
+    ]
+
     def __init__(self, loop, name, module, mtime):
+        self.machine = Machine(model=self,
+                            states=Plugin.states,
+                            transitions=Plugin.transitions,
+                            initial='ready')
         self.name = name
         self.module = module
         self.mtime = mtime
@@ -34,42 +68,45 @@ class Plugin(object):
         with contextlib.suppress(concurrent.futures.CancelledError):
             try:
                 await getattr(self.module, ENGAGE_METHOD)(self.loop)
-            except Exception as e:
-                LOGGER.error('Exception occurred in plugin {}'.format(self.name))
-                LOGGER.exception(e)
+            except Exception as ex:
+                LOGGER.exception('Exception occurred in plugin {}'.format(self.name), ex)
+                
+    def _on_start(self, loop):
+        """Create a new task for plugin"""
 
-    async def start(self):
-        self._task_coro = self.loop.create_task(self._wrap_coro())
-
-    async def stop(self):
+        self._task_coro = asyncio.ensure_future(self._wrap_coro(), loop=self.loop)
         shutdown = getattr(self.module, SHUTDOWN_METHOD, None)
-        if shutdown and asyncio.iscoroutinefunction(shutdown):
-            try:
-                LOGGER.debug('Now awaiting shutdown_task %s' % 
-                             self.module.__name__)
-                await shutdown()
-            except Exception as e:
-                LOGGER.exception(e)
-            
+        callback = None
+        if shutdown:
+            def callback_func(future):
+                shutdown()
+            callback = callback_func
+        else:
+            def callback_func(future):
+                pass
+            callback = callback_func
+        self._task_coro.add_done_callback(callback)
+
+    def _on_stop(self):
         if not self._task_coro.done():
             self._task_coro.cancel()
-        try:
-            LOGGER.debug('Now awaiting _task_coro %s' % self.module.__name__)
-            await self._task_coro
-        except Exception as e:
-            LOGGER.exception(e)
+        self._task_coro = None
 
-    def is_alive(self):
-        pass
+    def _on_close(self):
+        if self.state == 'running':
+            self._on_stop()
 
 
 class Subsystem(athome.core.SystemModule):
 
-    def __init__(self, loop, name):
-        super().__init__(loop, name)
+    def __init__(self, name):
+        super().__init__(name)
         self.running = None
 
-    def on_start(self):
+    def on_start(self, loop):
+        """None"""
+
+        super().on_start(loop)
         self.running = True
 
     def on_stop(self):
@@ -83,7 +120,6 @@ class Subsystem(athome.core.SystemModule):
             LOGGER.debug('Exited watch cycle')
         except Exception as ex:
             LOGGER.exception('Error in watch_plugin_dir cycle', ex)
-
 
     async def _directory_scan(self):
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -103,12 +139,12 @@ class Subsystem(athome.core.SystemModule):
                 if fname in _plugins:
                     await self._remove_plugin(fname)
                 plugin = self._load_plugin_module(fname, fpath, self.loop, mtime)
-                await self._register_plugin(plugin)
+                self._register_plugin(plugin)
 
 
-    async def _register_plugin(self, plugin):
+    def _register_plugin(self, plugin):
         _plugins[plugin.name] = plugin
-        await plugin.start()
+        plugin.start(self.loop)
 
 
     async def _remove_plugin(self, name):

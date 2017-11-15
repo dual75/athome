@@ -44,10 +44,12 @@ def install_signal_handlers(loop):
 def main():
     global core
     init_env()
+    loop = asyncio.get_event_loop()
+    loop.set_debug(True)
     core = athome.core.Core()
     try:
         core.initialize(config)
-        core.run_until_complete()
+        core.run_until_complete(loop)
         result = 0
     except KeyboardInterrupt as ex:
         LOGGER.info("Caught CTRL-C")

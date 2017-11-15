@@ -22,9 +22,10 @@ class Subsystem(athome.core.SystemModule):
         super().on_initialize(config)
         self.broker = None
 
-    def on_start(self):
+    def on_start(self, loop):
         """Instantiate a fresh broker"""
         
+        super().on_start(loop)
         self.broker = Broker(self.config)
 
     async def run(self):

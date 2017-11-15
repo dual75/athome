@@ -1,1 +1,3 @@
 hbmqtt
+transitions
+PyYAML
