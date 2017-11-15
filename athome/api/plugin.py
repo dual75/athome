@@ -52,7 +52,7 @@ class Plugin(object):
                 }
     ]
 
-    def __init__(self, loop, name, module, mtime):
+    def __init__(self, loop, name, module, mtime, await_queue):
         self.machine = Machine(model=self,
                             states=Plugin.states,
                             transitions=Plugin.transitions,
@@ -62,6 +62,7 @@ class Plugin(object):
         self.mtime = mtime
         self.loop = loop
         self._task_coro = None
+        self.await_queue = await_queue
 
     async def _wrap_coro(self):
         """Invoke plugin module 'engage' and wrap it into contextlib.suppress.CancelledError
@@ -71,10 +72,7 @@ class Plugin(object):
         """
 
         with contextlib.suppress(concurrent.futures.CancelledError):
-            try:
-                await getattr(self.module, ENGAGE_METHOD)(self.loop)
-            except Exception as ex:
-                LOGGER.exception('Exception occurred in plugin {}'.format(self.name), ex)
+            await getattr(self.module, ENGAGE_METHOD)(self.loop)
                 
     def _on_start(self, loop):
         """Create a new task for plugin"""
@@ -98,6 +96,7 @@ class Plugin(object):
 
         if not self._task_coro.done():
             self._task_coro.cancel()
+        self.await_queue.put_nowait(self._task_coro)
         self._task_coro = None
 
     def _on_close(self):

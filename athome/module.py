@@ -49,7 +49,7 @@ class SystemModule():
                 }
         ]
 
-    def __init__(self, name):
+    def __init__(self, name, await_queue=None):
         self.name = name
         self.machine = Machine(model=self,
                             states=SystemModule.states,
@@ -58,7 +58,7 @@ class SystemModule():
         self.loop = None
         self.config = None
         self.run_task = None
-        self.in_queue, self.out_queue = asyncio.Queue(), asyncio.Queue()
+        self.await_queue = await_queue
 
     def on_initialize(self, config):
         self.config = config
@@ -79,8 +79,8 @@ class SystemModule():
         if self.state is not 'ready':
             raise Exception('Subsystem not in "running" state')
 
+        self.on_start(loop)
         async def start_coro():
-            self.on_start(loop)
             await self.run()
 
         self.run_task = asyncio.ensure_future(start_coro(), loop=self.loop)
@@ -89,19 +89,17 @@ class SystemModule():
         self.on_stop()
         if not self.run_task.done():
             self.run_task.cancel()
+        if self.await_queue:
+            self.await_queue.put_nowait(self.run_task)
         self.run_task = None
 
     def _on_shutdown(self):
-        LOGGER.debug('Now awaiting shutdown_task for %s' % self.name)
         try:
             if self.state == 'running':
-                self.on_stop()
+                self._on_stop()
             self.on_shutdown()
         except Exception as ex:
             LOGGER.exception("Subsystem %s shutdown in error" % self.name, ex)
 
-        if self.run_task and not self.run_task.done():
-            LOGGER.info("Now canceling run_task for subsystem")
-            self.run_task.cancel()
 
         

@@ -18,18 +18,9 @@ MODULE_PREFIX   = '__athome_'
 LOGGER = logging.getLogger(__name__)
 
 
+
 class Subsystem(SystemModule):
     """Plugins subsystem"""
-
-    def __init__(self, name):
-        """
-        param: string: the name of this subsystem
-        """
-
-        super().__init__(name)
-        self.running = None
-        self.plugins = {}
-
 
     def on_start(self, loop):
         """'start' event callback method
@@ -40,29 +31,28 @@ class Subsystem(SystemModule):
 
         super().on_start(loop)
         self.running = True
+        self.plugins = {}
 
     def on_stop(self):
-        """'stop' event callback method
-        """
+        """'stop' event callback method"""
 
+        for name in list(self.plugins.keys()):
+            self._remove_plugin(name)
         self.running = False
+        self.plugins = None
 
     async def run(self):      
         """Subsystem activity method
 
         This method is a *coroutine*.
         """ 
-        try:
-            while self.running:
-                await self._directory_scan()
-                await asyncio.sleep(self.config['plugin_poll_interval'])
-            LOGGER.debug('Exited watch cycle')
-        except Exception as ex:
-            LOGGER.exception('Error in watch_plugin_dir cycle', ex)
+
+        while self.running:
+            await self._directory_scan()
+            await asyncio.sleep(self.config['plugin_poll_interval'])
 
     async def _directory_scan(self):
-        """Scan plugins directory for new, deleted or modified files
-        """
+        """Scan plugins directory for new, deleted or modified files"""
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             all_files = await self.loop.run_in_executor(executor,
@@ -78,8 +68,8 @@ class Subsystem(SystemModule):
 
             changed_files = self._find_changed(all_files)
             for fname, fpath, mtime in changed_files:
-                if fname in self.plugins:
-                    await self._remove_plugin(fname)
+                if fname in list(self.plugins.keys()):
+                    self._remove_plugin(fname)
                 plugin = self._load_plugin_module(fname, fpath, self.loop, mtime)
                 self._register_plugin(plugin)
 
@@ -93,7 +83,7 @@ class Subsystem(SystemModule):
         self.plugins[plugin.name] = plugin
         plugin.start(self.loop)
 
-    async def _remove_plugin(self, name):
+    def _remove_plugin(self, name):
         """Remove a plugin from current 
 
         :param name: name of the plugin to be removed 
@@ -145,6 +135,7 @@ class Subsystem(SystemModule):
         :param fname: basename of the module file
         :param fpath: full path of the module file
         :param loop: asyncio loop
+
         """
 
         result = None
@@ -153,9 +144,10 @@ class Subsystem(SystemModule):
         engage = getattr(module, plugin.ENGAGE_METHOD, None)
         if engage and asyncio.iscoroutinefunction(engage):
             LOGGER.debug("found plugin {}".format(fname))
-            result = plugin.Plugin(loop, fname, module, mtime)
+            result = plugin.Plugin(loop, fname, module, mtime, self.await_queue)
             sys.modules[module_name] = result
         else:
             LOGGER.warn("%s not a plugin, missing coroutine 'engage'" % fname)
             raise Exception('not a plugin module, missing coroutine "engage"')
         return result
+

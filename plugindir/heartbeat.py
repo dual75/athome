@@ -23,7 +23,7 @@ async def engage(loop):
         LOGGER.info('tumping')
         await client.publish('$ATHOME/heartbeat', b'tump!')
 
-async def shutdown():
+def shutdown():
     global client
     LOGGER.debug('shutdown!')
     if client:

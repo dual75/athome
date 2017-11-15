@@ -28,7 +28,7 @@ class Republisher(object):
     async def start(self):
         self.client = MQTTClient()
         await self.client.connect(self.url)
-        await self.client.subscribe(self.topics)
+        await self.client.subscribe(self.subs.topics)
         self.listen_task = loop.ensure_future(self.listen())
 
     def stop(self):
@@ -36,6 +36,7 @@ class Republisher(object):
         LOGGER.debug('Task exit exception: ' + str(self.listen_task.exception()))
             
     async def listen(self):
+        LOGGER.debug('Republisher for %s listening' % self.url)
         try:
             while self.subs.running:
                 message = await self.client.deliver_message()
@@ -44,6 +45,7 @@ class Republisher(object):
             LOGGER.info("Republisher task canceled")
         finally:
             await self.client.disconnect()
+            self.client = None
 
     async def forward(self, message):
         packet = message.publish_packet
@@ -87,18 +89,10 @@ class Subsystem(SystemModule):
         try:
             local_client = await mqtt.local_client()
             remote_clients = {'local': local_client}
-            for url in self.remote_urls:
-                client = MQTTClient()
-                remote_clients[url] = client
-                LOGGER.debug('Connect to %s' % url)
-                await client.connect(url)
-            tasks = []
             for url, client in remote_clients.items():
                 republisher = Republisher(self, url)
-                self.republishers.append(republisher)
                 await republisher.start()
-                tasks.append(republisher.run_task)
-            await asyncio.gather(tasks) 
+                self.republishers.append(republisher)
         except ClientException as ce:
             LOGGER.error("Client exception: %s" % ce)
           

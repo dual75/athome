@@ -17,6 +17,9 @@ import athome
 
 LOGGER = logging.getLogger(__name__)
 
+core = None
+loop = None
+
 def init_env():
     """Initialize logging an sys.path"""
 
@@ -26,18 +29,17 @@ def init_env():
     LOGGER.debug(sys.path)
     return yaml.load(open('config.yml', 'rb'))
 
-async def ask_exit(signame):
+def ask_exit():
     """Handle interruptions via posix signals
     
     Parameters:
     signame: name of the signal
     """
 
-    LOGGER.info("got signal %s: exit" % signame)
+    LOGGER.info("got signal  exit")
     core.stop()
 
-
-def install_signal_handlers(loop):
+def install_signal_handlers(loop, core):
     """Install signal handlers for SIGINT and SIGTERM
     
     Parameters:
@@ -47,15 +49,16 @@ def install_signal_handlers(loop):
     signames = ('SIGINT', 'SIGTERM')
     if os.name != 'nt':
         for signame in signames:
-            loop.add_signal_handler(getattr(signal, signame),
-                functools.partial(ask_exit, signame))
+            loop.add_signal_handler(getattr(signal, signame), ask_exit)
 
 def main():
+    global loop, core
+
     config = init_env()
     loop = asyncio.get_event_loop()
     loop.set_debug(True)
-    install_signal_handlers(loop)
     core = athome.Core()
+    install_signal_handlers(loop, core)
     try:
         core.initialize(config)
         core.run_until_complete(loop)
@@ -70,7 +73,6 @@ def main():
         core.shutdown()
     sys.exit(result)
 
- 
 if __name__ == '__main__':
     main()
  
