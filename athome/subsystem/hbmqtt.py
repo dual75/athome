@@ -1,6 +1,6 @@
 # Copyright (c) 2017 Alessandro Duca
 #
-# See the file license.txt for copying permission.
+# See the file LICENCE for copying permission.
 
 import os, sys
 import asyncio
@@ -9,11 +9,11 @@ import concurrent
 
 from hbmqtt.broker import Broker
 
-import athome
+from athome.module import SystemModule
 
 LOGGER = logging.getLogger(__name__)
 
-class Subsystem(athome.core.SystemModule):
+class Subsystem(SystemModule):
     """Subsystem embedding hbmqtt broker"""
 
     def on_initialize(self, config):

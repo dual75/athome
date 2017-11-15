@@ -12,16 +12,17 @@ from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 import athome
 
-broker = None
-config = None
-
 LOCAL_CLIENT_CONFIG = {
         'keep_alive': 30,
         'default_qos': QOS_0
     }
 
 async def local_client():
-    """Create a mqtt client connected to the local broker"""
+    """Create a mqtt client connected to the local broker
+    
+    This method is a *coroutine*
+    
+    """
 
     config = athome.core.Core().config
     url = config['subsystem']['hbmqtt']['config']['listeners']['local']['bind']

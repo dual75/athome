@@ -1,6 +1,9 @@
 # Copyright (c) 2017 Alessandro Duca
 #
-# See the file license.txt for copying permission.
+# See the file LICENCE for copying permission.
+
+"""
+"""
 
 import os, sys
 import signal
@@ -14,9 +17,6 @@ import athome
 
 LOGGER = logging.getLogger(__name__)
 
-config = yaml.load(open('config.yml', 'rb'))
-core = None
-
 def init_env():
     """Initialize logging an sys.path"""
 
@@ -24,16 +24,25 @@ def init_env():
     logging.getLogger('hbmqtt').setLevel(logging.INFO)
     logging.getLogger('transitions').setLevel(logging.WARN)
     LOGGER.debug(sys.path)
+    return yaml.load(open('config.yml', 'rb'))
 
 async def ask_exit(signame):
-    """Handle interruptions via posix signals"""
+    """Handle interruptions via posix signals
+    
+    Parameters:
+    signame: name of the signal
+    """
 
     LOGGER.info("got signal %s: exit" % signame)
     core.stop()
 
 
 def install_signal_handlers(loop):
-    """Install signal handlers for SIGINT and SIGTERM"""
+    """Install signal handlers for SIGINT and SIGTERM
+    
+    Parameters:
+    param:
+    """
 
     signames = ('SIGINT', 'SIGTERM')
     if os.name != 'nt':
@@ -42,11 +51,11 @@ def install_signal_handlers(loop):
                 functools.partial(ask_exit, signame))
 
 def main():
-    global core
-    init_env()
+    config = init_env()
     loop = asyncio.get_event_loop()
     loop.set_debug(True)
-    core = athome.core.Core()
+    install_signal_handlers(loop)
+    core = athome.Core()
     try:
         core.initialize(config)
         core.run_until_complete(loop)

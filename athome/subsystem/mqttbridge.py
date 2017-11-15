@@ -1,16 +1,18 @@
 # Copyright (c) 2017 Alessandro Duca
 #
-# See the file license.txt for copying permission.
+# See the file LICENCE for copying permission.
 
-import os, sys
 import asyncio
-import logging
 import concurrent
+import logging
+import os
+import sys
 
-from hbmqtt.client import MQTTClient, ClientException
+from hbmqtt.client import ClientException, MQTTClient
 from hbmqtt.mqtt.constants import QOS_1, QOS_2
 
-import athome
+from athome.api import mqtt
+from athome.module import SystemModule
 
 LOGGER = logging.getLogger(__name__)
 
@@ -46,8 +48,8 @@ class Republisher(object):
                                 packet.payload.data)                                    
 
 
-class Subsystem(athome.core.SystemModule):
-    """Subsystem embedding hbmqtt broker"""
+class Subsystem(SystemModule):
+    """MQTT Bridge subsystem"""
 
     def on_initialize(self, config):
         """Perform subsystem initialization"""
@@ -56,24 +58,29 @@ class Subsystem(athome.core.SystemModule):
         self.topics = self.config['topics']
         self.remote_urls, self.remote_clients = [], None
         for broker in config['brokers'].values():
-            url = "{}://".format(broker['protocol'])
-            if 'username' in broker:
-                url += '{}:{}@'.format(broker['username'], broker['password'])
-            url += "{}:{}".format(broker['host'], broker['port'])
+            url = self._compose_url(broker)
             self.remote_urls.append(url)
         self.republishers = []
+    
+    def _compose_url(self, broker):
+        result = [ "{}://".format(broker['protocol']) ]
+        if all(k in broker for k in ('username', 'password')):
+            result.append('{}:{}@'.format(broker['username'], broker['password']))
+        result.append("{}:{}".format(broker['host'], broker['port']))
+        return "".join(result)
             
     def on_start(self, loop):
-        """Instantiate a fresh broker"""
+        """Initialize or reinitializa subsystem state"""
+
         super().on_start(loop)
         self.running = True
         self.republishers = []
 
     async def run(self):
-        """Start broker"""
+        """Start bridging activity"""
 
         try:
-            local_client = await athome.mqtt.local_client()
+            local_client = await mqtt.local_client()
             remote_clients = {'local': local_client}
             for url in self.remote_urls:
                 client = MQTTClient()
@@ -111,6 +118,3 @@ class Subsystem(athome.core.SystemModule):
         for republisher in self.republishers:
             if url != republisher.url:
                 await republisher.forward(message)
-        
-
-

@@ -1,118 +1,57 @@
 # Copyright (c) 2017 Alessandro Duca
 #
-# See the file license.txt for copying permission.
+# See the file LICENCE for copying permission.
 
 import os, sys
 import asyncio
 import logging
-import functools
 import concurrent
 import importlib
 import contextlib
 from functools import partial
 
-from transitions import Machine
+from athome.module import SystemModule
+from athome.api import plugin
 
-import athome
-
-ENGAGE_METHOD   = 'engage'
-SHUTDOWN_METHOD = 'shutdown'
 MODULE_PREFIX   = '__athome_'
 
 LOGGER = logging.getLogger(__name__)
 
-_plugins = dict()
 
-
-class Plugin(object):
-
-    states = [
-        'ready',
-        'running',
-        'closed'
-    ]
-
-    transitions = [
-            {
-                'trigger':'start',
-                'source':'ready',
-                'dest':'running',
-                'before': ['_on_start']
-                },
-            {
-                'trigger':'stop',
-                'source':'running',
-                'dest':'ready',
-                'before': ['_on_stop']
-                },
-            {
-                'trigger':'close',
-                'source': ['loaded', 'ready', 'running'],
-                'dest':'ready',
-                'before': ['_on_close']
-                }
-    ]
-
-    def __init__(self, loop, name, module, mtime):
-        self.machine = Machine(model=self,
-                            states=Plugin.states,
-                            transitions=Plugin.transitions,
-                            initial='ready')
-        self.name = name
-        self.module = module
-        self.mtime = mtime
-        self.loop = loop
-        self._task_coro = None
-
-    async def _wrap_coro(self):
-        with contextlib.suppress(concurrent.futures.CancelledError):
-            try:
-                await getattr(self.module, ENGAGE_METHOD)(self.loop)
-            except Exception as ex:
-                LOGGER.exception('Exception occurred in plugin {}'.format(self.name), ex)
-                
-    def _on_start(self, loop):
-        """Create a new task for plugin"""
-
-        self._task_coro = asyncio.ensure_future(self._wrap_coro(), loop=self.loop)
-        shutdown = getattr(self.module, SHUTDOWN_METHOD, None)
-        callback = None
-        if shutdown:
-            def callback_func(future):
-                shutdown()
-            callback = callback_func
-        else:
-            def callback_func(future):
-                pass
-            callback = callback_func
-        self._task_coro.add_done_callback(callback)
-
-    def _on_stop(self):
-        if not self._task_coro.done():
-            self._task_coro.cancel()
-        self._task_coro = None
-
-    def _on_close(self):
-        if self.state == 'running':
-            self._on_stop()
-
-
-class Subsystem(athome.core.SystemModule):
+class Subsystem(SystemModule):
+    """Plugins subsystem"""
 
     def __init__(self, name):
+        """
+        param: string: the name of this subsystem
+        """
+
         super().__init__(name)
         self.running = None
+        self.plugins = {}
+
 
     def on_start(self, loop):
-        """None"""
+        """'start' event callback method
+        
+        param: loop: asyncio.AbstractEventLoop
+
+        """
 
         super().on_start(loop)
         self.running = True
 
     def on_stop(self):
+        """'stop' event callback method
+        """
+
         self.running = False
 
-    async def run(self):       
+    async def run(self):      
+        """Subsystem activity method
+
+        This method is a *coroutine*.
+        """ 
         try:
             while self.running:
                 await self._directory_scan()
@@ -122,6 +61,9 @@ class Subsystem(athome.core.SystemModule):
             LOGGER.exception('Error in watch_plugin_dir cycle', ex)
 
     async def _directory_scan(self):
+        """Scan plugins directory for new, deleted or modified files
+        """
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             all_files = await self.loop.run_in_executor(executor,
                                                    partial(
@@ -130,28 +72,37 @@ class Subsystem(athome.core.SystemModule):
                                                      )
                                                    )
             all_file_names = {f[0] for f in all_files}
-            memory_file_names = set(_plugins.keys())
+            memory_file_names = set(self.plugins.keys())
             for fname in memory_file_names - all_file_names:
                 await self._remove_plugin(fname)
 
             changed_files = self._find_changed(all_files)
             for fname, fpath, mtime in changed_files:
-                if fname in _plugins:
+                if fname in self.plugins:
                     await self._remove_plugin(fname)
                 plugin = self._load_plugin_module(fname, fpath, self.loop, mtime)
                 self._register_plugin(plugin)
 
-
     def _register_plugin(self, plugin):
-        _plugins[plugin.name] = plugin
+        """Add a plugin from current running set and start it
+
+        :param plugin: plugin to be added
+
+        """
+
+        self.plugins[plugin.name] = plugin
         plugin.start(self.loop)
 
-
     async def _remove_plugin(self, name):
-        plugin = _plugins[name]
-        plugin.stop()
-        del _plugins[name]
+        """Remove a plugin from current 
 
+        :param name: name of the plugin to be removed 
+
+        """
+
+        plugin = self.plugins[name]
+        plugin.stop()
+        del self.plugins[name]
 
     def _find_all(self, plugins_dir):
         result = [(f, os.path.join(plugins_dir, f))
@@ -161,40 +112,50 @@ class Subsystem(athome.core.SystemModule):
             ]
         LOGGER.info("existing plugin modules: {}".format(str(result)))
         return result
-
         
     def _find_changed(self, files):
         result = []
         module_stamps = {
             plugin.name: plugin.mtime
-            for plugin in _plugins.values()
+            for plugin in self.plugins.values()
             }
         for fname, fpath in files:
             fstat = os.stat(fpath)
             if module_stamps.get(fname, 0) < fstat.st_mtime:
                 result.append((fname, fpath, fstat.st_mtime))
         LOGGER.info("changed plugin modules: {}".format(str(result)))
-        return result
-        
+        return result  
 
     def _import_module(self, module_name, fpath):
+        """Import a module from source
+
+        :param module_name: name of the module
+        :param fpath: full path of the module source file
+
+        """
+
         spec = importlib.util.spec_from_file_location(module_name, fpath)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
 
-
     def _load_plugin_module(self, fname, fpath, loop, mtime):
+        """Load a module from plugin directory
+
+        :param fname: basename of the module file
+        :param fpath: full path of the module file
+        :param loop: asyncio loop
+        """
+
         result = None
         module_name = MODULE_PREFIX + fname[:-3]
         module = self._import_module(module_name, fpath)
-        engage = getattr(module, ENGAGE_METHOD, None)
+        engage = getattr(module, plugin.ENGAGE_METHOD, None)
         if engage and asyncio.iscoroutinefunction(engage):
             LOGGER.debug("found plugin {}".format(fname))
-            result = Plugin(loop, fname, module, mtime)
+            result = plugin.Plugin(loop, fname, module, mtime)
             sys.modules[module_name] = result
         else:
             LOGGER.warn("%s not a plugin, missing coroutine 'engage'" % fname)
             raise Exception('not a plugin module, missing coroutine "engage"')
         return result
-
