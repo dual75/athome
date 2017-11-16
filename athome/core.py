@@ -29,7 +29,7 @@ class Core(SystemModule):
             super().__init__('core', asyncio.Queue())
             self.subsystems = {}
             self.loop = None
-            self.burn_task = None
+            self.harvest_task = None
             self.__initialized = True
 
     def on_initialize(self, config):
@@ -50,31 +50,26 @@ class Core(SystemModule):
             LOGGER.info('Starting subsystem %s', name)
             subsystem.initialize(config['subsystem'][name]['config'])
 
+    async def _do_emit(self, evt):
+        LOGGER.debug('Emit EVENT %s', evt)
+        for subsystem in self.subsystems.values():
+            await subsystem.on_event(evt)
+
     def emit(self, evt):
-        async def do_emit(evt):
-            for subsystem in self.subsystems.values():
-                await subsystem.on_event(evt)
-        self.await_queue.put_nowait(do_emit(evt))
+        self.await_queue.put_nowait(self._do_emit(evt))
 
-    def on_start(self, loop):
-        self.loop = loop
-        self.burn_task = asyncio.ensure_future(self.burn(), loop=self.loop)
-        self.emit('athome_start')
-
-    async def run(self):
-        await asyncio.gather(*[
-            subsystem.run_task for subsystem in self.subsystems.values()
-            ])
-       
-    def on_stop(self):
-        self.emit('athome_stop')
+    def _on_stop(self):
+        self.emit('athome_stopped')
+        self.await_queue.put_nowait('exit')
+        self.run_task = None
 
     def on_shutdown(self):
         self.emit('athome_shutdown')
+        self.await_queue.put_nowait('exit')
 
-    async def burn(self):
+    async def run(self):
         message = 'start'
-        while message != 'stop':
+        while message != 'exit':
             message = await self.await_queue.get()
             LOGGER.debug('Got message %s from self.await_queue', str(message))
             if isinstance(message, asyncio.Future):
@@ -87,15 +82,10 @@ class Core(SystemModule):
                     LOGGER.warning("... caught %s on await ...", ex)
                 finally:
                     LOGGER.info('... done')
-        LOGGER.info('Burn coro exited')
-
-    def _on_stop(self):
-        self.await_queue.put_nowait(self.run_task)
-        super()._on_stop()
+        LOGGER.info('Harvest coro exited')
 
     def run_until_complete(self, loop):
         self.start(loop)
-        loop.run_until_complete(self.run_task)
-        self.await_queue.put_nowait('stop')
-        loop.run_until_complete(self.burn_task)
+        self.emit('athome_started')
+        self.await_queue.put_nowait(self.run_task)
 

@@ -20,7 +20,7 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: true
+        enable: false
         config:
             brokers:
                 local:
@@ -38,7 +38,7 @@ subsystem:
                     ]
  
     plugins:
-        enable: true
+        enable: false
         config:
             plugins_dir: 'plugindir'
             plugin_poll_interval: 5

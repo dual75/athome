@@ -26,15 +26,6 @@ class Republisher(object):
         self.listen_task = None
         self.pending = set()
 
-    async def on_event(self, evt):
-        if evt == 'broker_start':
-            self.start()
-            self.core.emit('bridge_started')
-        elif evt == 'athome_stop':
-            self.stop()
-        elif evt == 'athome_shutdown':
-            sefl.shutdown()
-
     async def start(self):
         self.client = MQTTClient()
         await self.client.connect(self.url)
@@ -78,6 +69,16 @@ class Subsystem(SystemModule):
         self.republishers = []
         self.running = False
         self.topics = None
+
+    async def on_event(self, evt):
+        if evt == 'broker_started':
+            self.start()
+            self.core.emit('bridge_started')
+        elif evt == 'broker_stopped':
+            self.stop()
+            self.core.emit('bridge_stopped')
+        elif evt == 'athome_shutdown':
+            sefl.shutdown()
 
     def on_initialize(self, config):
         """Perform subsystem initialization"""
