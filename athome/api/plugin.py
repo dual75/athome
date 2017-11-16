@@ -61,7 +61,7 @@ class Plugin(object):
         self.module = module
         self.mtime = mtime
         self.loop = loop
-        self._task_coro = None
+        self.run_task = None
         self.await_queue = await_queue
 
     async def _wrap_coro(self):
@@ -77,7 +77,7 @@ class Plugin(object):
     def _on_start(self, loop):
         """Create a new task for plugin"""
 
-        self._task_coro = asyncio.ensure_future(self._wrap_coro(), loop=self.loop)
+        self.run_task = asyncio.ensure_future(self._wrap_coro(), loop=self.loop)
         shutdown = getattr(self.module, SHUTDOWN_METHOD, None)
         callback = None
         if shutdown:
@@ -88,16 +88,19 @@ class Plugin(object):
             def callback_func(future):
                 LOGGER.debug("Dummy callback() for plugin %s run_task" % self.name)
             callback = callback_func
-        self._task_coro.add_done_callback(callback)
+        self.run_task.add_done_callback(callback)
 
     def _on_stop(self):
         """Before 'stop' event handler
         """
 
-        if not self._task_coro.done():
-            self._task_coro.cancel()
-        self.await_queue.put_nowait(self._task_coro)
-        self._task_coro = None
+        if self.run_task and not self.run_task.done():
+            LOGGER.debug('Plugin "engage" still running, cancel()')
+            self.run_task.cancel()
+        else:
+            LOGGER.debug("")
+        self.await_queue.put_nowait(self.run_task)
+        self.run_task = None
 
     def _on_close(self):
         """Before 'close' event handler

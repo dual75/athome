@@ -2,34 +2,27 @@
 #
 # See the file LICENCE for copying permission.
 
-import os, sys
+import os
+import sys
 import asyncio
 import logging
 import concurrent
-import importlib
-import contextlib
+from  importlib import util
 from functools import partial
 
 from athome.module import SystemModule
 from athome.api import plugin
 
-MODULE_PREFIX   = '__athome_'
+MODULE_PREFIX = '__athome_'
 
 LOGGER = logging.getLogger(__name__)
 
 
-
 class Subsystem(SystemModule):
     """Plugins subsystem"""
-
-    def on_start(self, loop):
-        """'start' event callback method
-        
-        param: loop: asyncio.AbstractEventLoop
-
-        """
-
-        super().on_start(loop)
+    
+    def __init__(self, name, await_queue):
+        super().__init__(name, await_queue)
         self.running = True
         self.plugins = {}
 
@@ -56,11 +49,11 @@ class Subsystem(SystemModule):
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             all_files = await self.loop.run_in_executor(executor,
-                                                   partial(
-                                                     self._find_all,
-                                                     self.config['plugins_dir']
-                                                     )
-                                                   )
+                                                        partial(
+                                                            self._find_all,
+                                                            self.config['plugins_dir']
+                                                             )
+                                                       )
             all_file_names = {f[0] for f in all_files}
             memory_file_names = set(self.plugins.keys())
             for fname in memory_file_names - all_file_names:
@@ -70,8 +63,8 @@ class Subsystem(SystemModule):
             for fname, fpath, mtime in changed_files:
                 if fname in list(self.plugins.keys()):
                     self._remove_plugin(fname)
-                plugin = self._load_plugin_module(fname, fpath, self.loop, mtime)
-                self._register_plugin(plugin)
+                plugin_ = self._load_plugin_module(fname, fpath, self.loop, mtime)
+                self._register_plugin(plugin_)
 
     def _register_plugin(self, plugin):
         """Add a plugin from current running set and start it
@@ -90,17 +83,17 @@ class Subsystem(SystemModule):
 
         """
 
-        plugin = self.plugins[name]
-        plugin.stop()
+        LOGGER.info('Stopping plugin %s', name)
+        plugin_ = self.plugins[name]
+        plugin_.stop()
         del self.plugins[name]
 
     def _find_all(self, plugins_dir):
         result = [(f, os.path.join(plugins_dir, f))
-                for f in os.listdir(plugins_dir)
-                if f.endswith('.py')
-                and os.path.isfile(os.path.join(plugins_dir, f))
-            ]
-        LOGGER.info("existing plugin modules: {}".format(str(result)))
+                  for f in os.listdir(plugins_dir)
+                  if f.endswith('.py')
+                  and os.path.isfile(os.path.join(plugins_dir, f))
+                 ]
         return result
         
     def _find_changed(self, files):
@@ -113,10 +106,11 @@ class Subsystem(SystemModule):
             fstat = os.stat(fpath)
             if module_stamps.get(fname, 0) < fstat.st_mtime:
                 result.append((fname, fpath, fstat.st_mtime))
-        LOGGER.info("changed plugin modules: {}".format(str(result)))
+        LOGGER.info("changed plugin modules: %s", str(result))
         return result  
 
-    def _import_module(self, module_name, fpath):
+    @staticmethod
+    def _import_module(module_name, fpath):
         """Import a module from source
 
         :param module_name: name of the module
@@ -124,8 +118,8 @@ class Subsystem(SystemModule):
 
         """
 
-        spec = importlib.util.spec_from_file_location(module_name, fpath)
-        module = importlib.util.module_from_spec(spec)
+        spec = util.spec_from_file_location(module_name, fpath)
+        module = util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
 
@@ -143,11 +137,11 @@ class Subsystem(SystemModule):
         module = self._import_module(module_name, fpath)
         engage = getattr(module, plugin.ENGAGE_METHOD, None)
         if engage and asyncio.iscoroutinefunction(engage):
-            LOGGER.debug("found plugin {}".format(fname))
+            LOGGER.debug("found plugin %s", fname)
             result = plugin.Plugin(loop, fname, module, mtime, self.await_queue)
             sys.modules[module_name] = result
         else:
-            LOGGER.warn("%s not a plugin, missing coroutine 'engage'" % fname)
+            LOGGER.warning("%s not a plugin, missing coroutine 'engage'", fname)
             raise Exception('not a plugin module, missing coroutine "engage"')
         return result
 

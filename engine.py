@@ -5,10 +5,10 @@
 """
 """
 
-import os, sys
+import os
+import sys
 import signal
 import asyncio
-import functools
 import logging
 
 import yaml
@@ -17,15 +17,16 @@ import athome
 
 LOGGER = logging.getLogger(__name__)
 
-core = None
+CORE = None
 loop = None
 
 def init_env():
     """Initialize logging an sys.path"""
 
     logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger('hbmqtt').setLevel(logging.INFO)
-    logging.getLogger('transitions').setLevel(logging.WARN)
+    logging.getLogger('asyncio.poll').setLevel(logging.WARNING)
+    logging.getLogger('hbmqtt').setLevel(logging.WARNING)
+    logging.getLogger('transitions').setLevel(logging.WARNING)
     LOGGER.debug(sys.path)
     return yaml.load(open('config.yml', 'rb'))
 
@@ -37,7 +38,7 @@ def ask_exit():
     """
 
     LOGGER.info("got signal  exit")
-    core.stop()
+    CORE.stop()
 
 def install_signal_handlers(loop, core):
     """Install signal handlers for SIGINT and SIGTERM
@@ -52,16 +53,16 @@ def install_signal_handlers(loop, core):
             loop.add_signal_handler(getattr(signal, signame), ask_exit)
 
 def main():
-    global loop, core
+    global LOOP, CORE
 
     config = init_env()
-    loop = asyncio.get_event_loop()
-    loop.set_debug(True)
-    core = athome.Core()
-    install_signal_handlers(loop, core)
+    LOOP = asyncio.get_event_loop()
+    LOOP.set_debug(True)
+    CORE = athome.Core()
+    install_signal_handlers(loop, CORE)
     try:
-        core.initialize(config)
-        core.run_until_complete(loop)
+        CORE.initialize(config)
+        CORE.run_until_complete(LOOP)
         result = 0
     except KeyboardInterrupt as ex:
         LOGGER.info("Caught CTRL-C")
@@ -70,7 +71,7 @@ def main():
         LOGGER.exception(ex)
         result = -1
     finally:
-        core.shutdown()
+        CORE.shutdown()
     sys.exit(result)
 
 if __name__ == '__main__':
