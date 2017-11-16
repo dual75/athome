@@ -26,6 +26,14 @@ class Subsystem(SystemModule):
         self.running = True
         self.plugins = {}
 
+    async def on_event(self, evt):
+        if evt == 'athome_start':
+            self.start()
+        elif evt == 'athome_stop':
+            self.stop()
+        elif evt == 'athome_shutdown':
+            sefl.shutdown()
+
     def on_stop(self):
         """'stop' event callback method"""
 

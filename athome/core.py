@@ -50,11 +50,16 @@ class Core(SystemModule):
             LOGGER.info('Starting subsystem %s', name)
             subsystem.initialize(config['subsystem'][name]['config'])
 
+    def emit(self, evt):
+        async def do_emit(evt):
+            for subsystem in self.subsystems.values():
+                await subsystem.on_event(evt)
+        self.await_queue.put_nowait(do_emit(evt))
+
     def on_start(self, loop):
         self.loop = loop
         self.burn_task = asyncio.ensure_future(self.burn(), loop=self.loop)
-        for subsystem in self.subsystems.values():
-            subsystem.start(loop)
+        self.emit('athome_start')
 
     async def run(self):
         await asyncio.gather(*[
@@ -62,12 +67,10 @@ class Core(SystemModule):
             ])
        
     def on_stop(self):
-        for subsystem in self.subsystems.values():
-            subsystem.stop()
+        self.emit('athome_stop')
 
     def on_shutdown(self):
-        for subsystem in self.subsystems.values():
-            subsystem.shutdown()
+        self.emit('athome_shutdown')
 
     async def burn(self):
         message = 'start'

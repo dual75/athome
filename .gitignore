@@ -2,3 +2,9 @@ __pycache__
 *.pyc
 .*.swp
 .vscode
+bin
+include
+lib
+share
+pyenv.cfg
+

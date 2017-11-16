@@ -49,7 +49,7 @@ class SystemModule():
                 }
         ]
 
-    def __init__(self, name, await_queue=None):
+    def __init__(self, name, await_queue=None, core=None):
         self.name = name
         self.machine = Machine(model=self,
                             states=SystemModule.states,
@@ -59,12 +59,16 @@ class SystemModule():
         self.config = None
         self.run_task = None
         self.await_queue = await_queue
+        self.core = core
 
     def on_initialize(self, config):
         self.config = config
 
     async def run(self):
         LOGGER.debug("run does nothing by default")
+
+    async def on_event(self, evt):
+        raise NotImplemented
 
     def on_start(self, loop):
         self.loop = loop

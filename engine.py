@@ -59,7 +59,7 @@ def main():
     LOOP = asyncio.get_event_loop()
     LOOP.set_debug(True)
     CORE = athome.Core()
-    install_signal_handlers(loop, CORE)
+    install_signal_handlers(LOOP, CORE)
     try:
         CORE.initialize(config)
         CORE.run_until_complete(LOOP)

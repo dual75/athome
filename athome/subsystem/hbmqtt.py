@@ -17,6 +17,15 @@ class Subsystem(SystemModule):
         super().__init__(name, await_queue)
         self.broker = None
 
+    async def on_event(self, evt):
+        if evt == 'athome_start':
+            self.start()
+            LOGGER.debug("hbmqtt started, waiting 5 secs.")
+            await asyncio.sleep(5)
+            self.core.emit('broker_started')
+        elif evt == 'athome_stop':
+            self.stop()
+
     def on_start(self, loop):
         """Instantiate a fresh broker"""
         super().on_start(loop)
