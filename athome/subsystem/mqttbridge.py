@@ -6,9 +6,10 @@ import asyncio
 import concurrent
 import logging
 
-from hbmqtt.client import ClientException, MQTTClient
+from hbmqtt.client import ClientException, ConnectException, MQTTClient
 
 from athome.module import SystemModule
+from athome.core import Core
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,17 +29,26 @@ class Republisher(object):
 
     async def start(self):
         self.client = MQTTClient()
-        await self.client.connect(self.url)
-        await self.client.subscribe(self.subs.topics)
-        self.listen_task = asyncio.ensure_future(
+        try:
+            await self.client.connect(self.url)
+            await self.client.subscribe(self.subs.topics)
+            self.listen_task = asyncio.ensure_future(
                                                  self.listen(), 
                                                  loop=self.subs.loop
                                                 )
+        except ConnectException as ex:
+            LOGGER.error("ClientException while trying to connect Republisher")
+            self.subs.core.fail()
 
     def stop(self):
-        self.listen_task.cancel()
-        self.subs.await_queue.put_nowait(self.listen_task)
-        self.listen_task = None
+        """Stop this Republisher
+        If there was a ConnectException the listen_task is still None
+        
+        """
+        if self.listen_task:
+            self.listen_task.cancel()
+            self.subs.await_queue.put_nowait(self.listen_task)
+            self.listen_task = None
             
     async def listen(self):
         LOGGER.debug('Republisher for %s listening', self.url)
@@ -69,23 +79,22 @@ class Subsystem(SystemModule):
         self.republishers = []
         self.running = False
         self.topics = None
+        self.core = Core()
 
     async def on_event(self, evt):
-        if evt == 'broker_started':
-            self.start()
-            self.core.emit('bridge_started')
-        elif evt == 'broker_stopped':
-            self.stop()
-            self.core.emit('bridge_stopped')
-        elif evt == 'athome_shutdown':
-            sefl.shutdown()
+        if not self.is_failed():
+            if evt == 'broker_started':
+                self.start(self.core.loop)
+            elif evt == 'broker_stopped':
+                self.stop()
+            elif evt == 'athome_shutdown':
+                self.shutdown()
 
-    def on_initialize(self, config):
+    def on_initialize(self):
         """Perform subsystem initialization"""
 
-        super().on_initialize(config)
         self.topics = self.config['topics']
-        for broker in config['brokers'].values():
+        for broker in self.config['brokers'].values():
             url = self._compose_url(broker)
             self.remote_urls.append(url)
     
@@ -102,9 +111,8 @@ class Subsystem(SystemModule):
         return result
 
     def on_start(self, loop):
-        """Initialize or reinitializa subsystem state"""
+        """Initialize or reinitialize subsystem state"""
 
-        super().on_start(loop)
         self.running = True
         self.republishers = []
 
@@ -130,7 +138,8 @@ class Subsystem(SystemModule):
     def on_shutdown(self):
         """On subsystem shutdown shutdown broker if existing"""
         
-        self.on_stop()
+        if self.is_running():
+            self.on_stop()
 
     async def forward(self, url, message):
         """Forward a message on all republishers but original one"""
@@ -139,3 +148,6 @@ class Subsystem(SystemModule):
         for republisher in [r for r in self.republishers if r.url != url]:
             LOGGER.debug('to %s', republisher.url)
             await republisher.forward(message)
+       
+    def on_fail(self):
+        pass

@@ -10,8 +10,11 @@ import concurrent
 from  importlib import util
 from functools import partial
 
+from contextlib.suppress import CancelledError
+
 from athome.module import SystemModule
 from athome.api import plugin
+from athome.core import Core
 
 MODULE_PREFIX = '__athome_'
 
@@ -25,14 +28,19 @@ class Subsystem(SystemModule):
         super().__init__(name, await_queue)
         self.running = True
         self.plugins = {}
+        self.core = Core()
 
     async def on_event(self, evt):
-        if evt == 'athome_start':
-            self.start()
-        elif evt == 'athome_stop':
-            self.stop()
-        elif evt == 'athome_shutdown':
-            sefl.shutdown()
+        if not self.is_failed():
+            if evt == 'athome_started':
+                self.start(self.core.loop)
+            elif evt == 'athome_stop':
+                self.stop()
+            elif evt == 'athome_shutdown':
+                self.shutdown()
+
+    def after_start(self):
+        self.core.emit('plugins_started')
 
     def on_stop(self):
         """'stop' event callback method"""
@@ -42,15 +50,22 @@ class Subsystem(SystemModule):
         self.running = False
         self.plugins = None
 
+    def after_stop(self):
+        self.loop.emit('plugins_stopped')
+
     async def run(self):      
         """Subsystem activity method
 
         This method is a *coroutine*.
         """ 
 
-        while self.running:
-            await self._directory_scan()
-            await asyncio.sleep(self.config['plugin_poll_interval'])
+        poll_interval = self.config['plugin_poll_interval']
+        try:
+            while self.running:
+                await self._directory_scan()
+                await asyncio.sleep(poll_interval)
+        except CancelledError as ex:
+            LOGGER.info("Caught CancelledError for plugins subsystem")
 
     async def _directory_scan(self):
         """Scan plugins directory for new, deleted or modified files"""

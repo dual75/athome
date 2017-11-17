@@ -4,8 +4,6 @@
 
 import asyncio
 import logging
-import importlib
-from functools import partial
 
 from transitions import Machine
 
@@ -19,7 +17,7 @@ class SystemModule():
                 'ready',
                 'running',
                 'closed',
-                'failure'
+                'failed'
               ]
 
     transitions = [
@@ -27,29 +25,40 @@ class SystemModule():
                 'trigger':'initialize',
                 'source':'loaded',
                 'dest':'ready',
-                'before': ['on_initialize']
+                'before': ['_on_initialize'],
+                'after': ['_after_initialize']
                 },
             {
                 'trigger':'start',
                 'source':'ready',
                 'dest':'running',
-                'before': ['_on_start']
+                'before': ['_on_start'],
+                'after': ['_after_start']
                 },
             {
                 'trigger':'stop',
                 'source':'running',
                 'dest':'ready',
-                'before': ['_on_stop']
+                'before': ['_on_stop'],
+                'after': ['_after_stop']
                 },
             {
                 'trigger':'shutdown',
                 'source':['loaded', 'ready', 'running'],
                 'dest':'closed',
-                'before': ['_on_shutdown']
+                'before': ['_on_shutdown'],
+                'after': ['_after_shutdown']
+                },
+            {
+                'trigger':'fail',
+                'source':['loaded', 'ready', 'running'],
+                'dest':'failed',
+                'before': ['_on_fail']
                 }
         ]
 
-    def __init__(self, name, await_queue=None, core=None):
+    def __init__(self, name, await_queue=None):
+
         self.name = name
         self.machine = Machine(model=self,
                             states=SystemModule.states,
@@ -59,36 +68,51 @@ class SystemModule():
         self.config = None
         self.run_task = None
         self.await_queue = await_queue
-        self.core = core
 
-    def on_initialize(self, config):
+    def on_initialize(self):
+        """on_initialize placeholder"""
+        pass
+
+    def _on_initialize(self, config):
+
+        LOGGER.debug("Initialize module %s", self.name)
         self.config = config
+        self.on_initialize()
+
+    def after_initialize(self, config):
+        """after_initialize placeholder"""
+
+        pass
+
+    def _after_initialize(self, config):
+        self.after_initialize(config)
 
     async def run(self):
         LOGGER.debug("run does nothing by default")
 
-    async def on_event(self, evt):
-        raise NotImplemented
-
     def on_start(self, loop):
-        self.loop = loop
+        """on_start placeholder"""
 
-    def on_stop(self):
-        raise NotImplementedError
-
-    def on_shutdown(self):
-        LOGGER.debug("on_shutdown does nothing by default")
+        pass
 
     def _on_start(self, loop):
-        if self.state is not 'ready':
-            raise Exception('Subsystem not in "running" state')
-
+        self.loop = loop
         self.on_start(loop)
-        async def start_coro():
-            await self.run()
+        self.run_task = asyncio.ensure_future(self.run(), loop=loop)
 
-        self.run_task = asyncio.ensure_future(start_coro(), loop=self.loop)
+    def after_start(self, loop):
+        """after_start placeholder"""
 
+        pass
+
+    def _after_start(self, loop):
+        self.after_start(loop)
+
+    def on_stop(self):
+        """Perform module stop activities, mandatory"""
+
+        raise NotImplementedError
+    
     def _on_stop(self):
         self.on_stop()
         if not self.run_task.done():
@@ -97,13 +121,41 @@ class SystemModule():
             self.await_queue.put_nowait(self.run_task)
         self.run_task = None
 
+    def after_stop(self):
+        """after_start placeholder"""
+
+        pass
+
+    def _after_stop(self):
+        """After 'stop' callback"""
+
+        self.after_stop()
+
+    def on_shutdown(self):
+        """on_shutdown placeholder"""
+
+        pass
+
     def _on_shutdown(self):
         try:
             if self.state == 'running':
                 self._on_stop()
             self.on_shutdown()
         except Exception as ex:
-            LOGGER.exception("Subsystem %s shutdown in error" % self.name, ex)
+            LOGGER.exception("Subsystem %s shutdown in error: %s", self.name, ex)
 
+    def after_shutdown(self):
+        """after_shutdown placeholder"""
 
+        pass
+
+    def _after_shutdown(self):
+        self.after_shutdown()
+
+    def on_fail(self):
+        pass
+
+    def _on_fail(self):
+        self.on_fail()
+        LOGGER.error('SystemModule %s failed', self.name)
         

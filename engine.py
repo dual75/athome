@@ -17,8 +17,8 @@ import athome
 
 LOGGER = logging.getLogger(__name__)
 
-CORE = None
-loop = None
+CORE = athome.Core()
+LOOP = asyncio.get_event_loop()
 
 def init_env():
     """Initialize logging an sys.path"""
@@ -53,16 +53,12 @@ def install_signal_handlers(loop, core):
             loop.add_signal_handler(getattr(signal, signame), ask_exit)
 
 def main():
-    global LOOP, CORE
-
     config = init_env()
-    LOOP = asyncio.get_event_loop()
     LOOP.set_debug(True)
-    CORE = athome.Core()
     #install_signal_handlers(LOOP, CORE)
     try:
         CORE.initialize(config)
-        CORE.run_until_complete(LOOP)
+        CORE.run_forever(LOOP)
         result = 0
     except KeyboardInterrupt as ex:
         LOGGER.info("Caught CTRL-C")
@@ -73,6 +69,7 @@ def main():
     finally:
         CORE.shutdown()
     sys.exit(result)
+
 
 if __name__ == '__main__':
     main()
