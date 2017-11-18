@@ -9,7 +9,7 @@ import logging
 from hbmqtt.client import ClientException, ConnectException, MQTTClient
 
 from athome.module import SystemModule
-from athome.core import Core
+from athome.core import Core, Message, MESSAGE_AWAIT
 
 LOGGER = logging.getLogger(__name__)
 
@@ -18,14 +18,14 @@ class Republisher(object):
     """
     """
 
-    REPUBLISH = '$ATHOME/republish/%s'
+    REPUBLISH = 'athome/bridged/%s'
 
-    def __init__(self, subs, url):
+    def __init__(self, subs, url, await_queue):
         self.subs = subs
         self.url = url
         self.client = None
         self.listen_task = None
-        self.pending = set()
+        self.await_queue = await_queue
 
     async def start(self):
         self.client = MQTTClient()
@@ -36,9 +36,10 @@ class Republisher(object):
                                                  self.listen(), 
                                                  loop=self.subs.loop
                                                 )
+            self.subs.core.emit('republisher_started')
         except ConnectException as ex:
             LOGGER.error("ClientException while trying to connect Republisher")
-            self.subs.core.fail()
+            self.subs.close()
 
     def stop(self):
         """Stop this Republisher
@@ -46,8 +47,11 @@ class Republisher(object):
         
         """
         if self.listen_task:
-            self.listen_task.cancel()
-            self.subs.await_queue.put_nowait(self.listen_task)
+            if not self.listen_task.done():
+                self.listen_task.cancel()
+            self.await_queue.put_nowait(Message(MESSAGE_AWAIT,
+                                                self.listen_task)
+                                       )
             self.listen_task = None
             
     async def listen(self):
@@ -55,10 +59,8 @@ class Republisher(object):
         try:
             while self.subs.running:
                 message = await self.client.deliver_message()
-                LOGGER.debug('Delivered message %s', message)
                 await self.subs.forward(self.url, message)
-                LOGGER.debug('Forwared message %s', message)
-        except concurrent.futures.CancelledError:
+        except asyncio.CancelledError:
             LOGGER.info("Republisher task canceled")
         finally:
             await self.client.disconnect()
@@ -68,7 +70,13 @@ class Republisher(object):
         packet = message.publish_packet
         republish_topic = self.REPUBLISH % packet.variable_header.topic_name
         LOGGER.debug('Forward to topic %s' % republish_topic)
-        await self.client.publish(republish_topic, packet.payload.data)                                    
+        try:
+            await self.client.publish(republish_topic, 
+                                      packet.payload.data, 
+                                      message.qos)
+        except:
+            LOGGER.exception('Error while publishing on %s', self.url)
+
 
 class Subsystem(SystemModule):
     """MQTT Bridge subsystem"""
@@ -81,11 +89,12 @@ class Subsystem(SystemModule):
         self.topics = None
         self.core = Core()
 
-    async def on_event(self, evt):
+    def on_event(self, evt):
+        LOGGER.debug('hbmqttbridge subsystem event: %s', evt)
         if not self.is_failed():
             if evt == 'broker_started':
                 self.start(self.core.loop)
-            elif evt == 'broker_stopped':
+            elif evt == 'broker_stopping':
                 self.stop()
             elif evt == 'athome_shutdown':
                 self.shutdown()
@@ -121,19 +130,21 @@ class Subsystem(SystemModule):
 
         try:
             for url in self.remote_urls:
-                republisher = Republisher(self, url)
+                republisher = Republisher(self, url, self.await_queue)
                 await republisher.start()
                 self.republishers.append(republisher)
+            self.core.emit('bridge_started')
         except ClientException as ex:
             LOGGER.error("Client exception: %s", ex)
 
     def on_stop(self):
         """On subsystem stop shutdown broker"""
         
-        for republisher in self.republishers or []:
-            republisher.stop()
+        if self.republishers:
+            for republisher in self.republishers:
+                republisher.stop()
+            self.republishers = None
         self.running = False
-        self.republishers = None
         
     def on_shutdown(self):
         """On subsystem shutdown shutdown broker if existing"""
@@ -150,4 +161,8 @@ class Subsystem(SystemModule):
             await republisher.forward(message)
        
     def on_fail(self):
-        pass
+        """on_fail placeholder"""
+
+        if self.is_running():
+            self.on_stop()
+

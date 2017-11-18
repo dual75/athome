@@ -14,6 +14,7 @@ from functools import partial
 from transitions import Machine
 
 import athome
+from athome.core import Message, MESSAGE_AWAIT
 
 ENGAGE_METHOD   = 'engage'
 SHUTDOWN_METHOD = 'shutdown'
@@ -71,7 +72,7 @@ class Plugin(object):
 
         """
 
-        with contextlib.suppress(concurrent.futures.CancelledError):
+        with contextlib.suppress(asyncio.CancelledError):
             await getattr(self.module, ENGAGE_METHOD)(self.loop)
                 
     def _on_start(self, loop):
@@ -99,7 +100,7 @@ class Plugin(object):
             self.run_task.cancel()
         else:
             LOGGER.debug("")
-        self.await_queue.put_nowait(self.run_task)
+        self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.run_task))
         self.run_task = None
 
     def _on_close(self):

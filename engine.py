@@ -11,6 +11,8 @@ import signal
 import asyncio
 import logging
 
+from functools import partial
+
 import yaml
 
 import athome
@@ -23,24 +25,29 @@ LOOP = asyncio.get_event_loop()
 def init_env():
     """Initialize logging an sys.path"""
 
-    logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger('asyncio.poll').setLevel(logging.WARNING)
-    logging.getLogger('hbmqtt').setLevel(logging.WARNING)
-    logging.getLogger('transitions').setLevel(logging.WARNING)
+    config = yaml.load(open('config.yml', 'rb')) 
+    logconf = config['logging']
+    logging.basicConfig(**logconf['basicConfig'])
+    for pkg in logconf['packages']:
+        logging.getLogger(pkg).setLevel(getattr(
+                                               logging, 
+                                               logconf['packages'][pkg]
+                                               )
+                                       )
     LOGGER.debug(sys.path)
-    return yaml.load(open('config.yml', 'rb'))
+    return config
 
-def ask_exit():
+def ask_exit(signame):
     """Handle interruptions via posix signals
     
     Parameters:
     signame: name of the signal
     """
 
-    LOGGER.info("got signal  exit")
+    LOGGER.info("got signal %s exit" % signame)
     CORE.stop()
 
-def install_signal_handlers(loop, core):
+def install_signal_handlers():
     """Install signal handlers for SIGINT and SIGTERM
     
     Parameters:
@@ -50,12 +57,13 @@ def install_signal_handlers(loop, core):
     signames = ('SIGINT', 'SIGTERM')
     if os.name != 'nt':
         for signame in signames:
-            loop.add_signal_handler(getattr(signal, signame), ask_exit)
+            LOOP.add_signal_handler(getattr(signal, signame), 
+                            partial(ask_exit, signame))
 
 def main():
     config = init_env()
-    LOOP.set_debug(True)
-    #install_signal_handlers(LOOP, CORE)
+    LOOP.set_debug(config['asyncio']['debug'])
+    install_signal_handlers()
     try:
         CORE.initialize(config)
         CORE.run_forever(LOOP)

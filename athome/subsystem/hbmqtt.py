@@ -20,7 +20,7 @@ class Subsystem(SystemModule):
         self.broker = None
         self.core = Core()
 
-    async def on_event(self, evt):
+    def on_event(self, evt):
         LOGGER.debug('hbmqtt subsystem event: %s', evt)
         if not self.is_failed():
             if evt == 'athome_started':
@@ -51,12 +51,11 @@ class Subsystem(SystemModule):
     def on_stop(self):
         """On subsystem stop shutdown broker"""
 
-        self.core.emit('broker_stopping')
         self.core.faf(self.broker.shutdown())
         self.broker = None
 
     def after_stop(self):
-        self.core.emit('broker_stopped')
+        self.core.emit('broker_stopping')
         
     def on_shutdown(self):
         """On subsystem shutdown shutdown broker if existing"""

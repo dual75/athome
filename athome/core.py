@@ -6,11 +6,15 @@ import asyncio
 import importlib
 import logging
 
+from collections import namedtuple
 from concurrent.futures import CancelledError
 
 from athome.module import SystemModule
 
 LOGGER = logging.getLogger(__name__)
+       
+MESSAGE_AWAIT, MESSAGE_EVT, MESSAGE_START, MESSAGE_STOP = range(4)
+Message = namedtuple('Message', ('type', 'value'))
 
 class Core(SystemModule):
     """Core system module"""
@@ -28,6 +32,8 @@ class Core(SystemModule):
             super().__init__('core', asyncio.Queue())
             self.subsystems = {}
             self.loop = None
+            self.events = []
+            self.event_task = None
             self.__initialized = True
 
     def on_initialize(self):
@@ -43,37 +49,28 @@ class Core(SystemModule):
             self.subsystems[name] = subsystem
             subsystem.initialize(self.config['subsystem'][name]['config'])
 
-    def after_start(self, loop):
-        self.emit("athome_started")
-
-    async def _do_emit(self, evt):
-        LOGGER.debug('Emit event: %s', evt)
-        for subsystem in self.subsystems.values():
-            await subsystem.on_event(evt)
-
     def emit(self, evt):
         """Propagate event 'evt' to subsystems"""
+        self.await_queue.put_nowait(Message(MESSAGE_EVT, evt))
 
-        self.faf(self._do_emit(evt))
+    def after_start(self, loop):
+        self.emit("athome_started")
 
     def fire_and_forget(self, coro):
         """Create task from coro or awaitable and put it into await_queue"""
 
         task = asyncio.ensure_future(coro, loop=self.loop)
-        self.await_queue.put_nowait(task)
+        self.await_queue.put_nowait(Message(MESSAGE_AWAIT, task))
 
     # shortcut for function
     faf = fire_and_forget
 
-    def on_stop(self):
+    def _on_stop(self):
         self.emit('athome_stopping')
+        self.await_queue.put_nowait(Message(MESSAGE_STOP, None))
 
     def after_stop(self):
         self.emit('athome_stopped')
-
-    def on_shutdown(self):
-        self.emit('athome_shutdown')
-        self.await_queue.put_nowait('exit')
 
     def on_fail(self):
         """Failure event handler
@@ -92,25 +89,35 @@ class Core(SystemModule):
         self.await_queue.put('exit')
 
     async def run(self):
-        message = 'start'
-        while message != 'exit':
+        message = Message(MESSAGE_START, None)
+        while message.type != MESSAGE_STOP:
             message = await self.await_queue.get()
-            if isinstance(message, asyncio.Future):
-                try:
-                    if LOGGER.isEnabledFor(logging.DEBUG):
-                        LOGGER.info('Now awaiting %s...', str(message))
-                    await message
-                except CancelledError as ex:
-                    LOGGER.info('await ... caught CancelledError ...')
-                except Exception as ex:
-                    LOGGER.warning("await... caught %s on await ...", ex)
-                finally:
-                    LOGGER.info('await ... done')
-        LOGGER.info('Harvest coro exited')
+            if message.type == MESSAGE_AWAIT:
+                await self._await_task(message.value)   
+            elif message.type == MESSAGE_EVT:
+                await self._propagate_event(message.value)
+        LOGGER.info('core.run() coro exited')
 
+    async def _await_task(self, task):
+        try:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.info('Now awaiting %s...', str(message))
+            await task
+        except CancelledError as ex:
+            LOGGER.info('await ... caught CancelledError ...')
+        except Exception as ex:
+            LOGGER.warning("await... caught %s on await ...", ex)
+        finally:
+            LOGGER.info('await ... done')
+
+    async def _propagate_event(self, evt):
+        for subsystem in self.subsystems.values():
+            subsystem.on_event(evt)
+            
     def run_forever(self, loop):
         """Execute run coroutine until stopped"""
 
         self.start(loop)
         loop.run_until_complete(self.run_task)
+
 

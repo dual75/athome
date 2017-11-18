@@ -9,6 +9,7 @@ from transitions import Machine
 
 LOGGER = logging.getLogger(__name__)
 
+
 class SystemModule():
     """Base class for all athome system modules"""
 
@@ -71,9 +72,11 @@ class SystemModule():
 
     def on_initialize(self):
         """on_initialize placeholder"""
+
         pass
 
     def _on_initialize(self, config):
+        """On 'initialize' event handler"""
 
         LOGGER.debug("Initialize module %s", self.name)
         self.config = config
@@ -85,9 +88,13 @@ class SystemModule():
         pass
 
     def _after_initialize(self, config):
+        """After 'initialize' event handler"""
+
         self.after_initialize(config)
 
     async def run(self):
+        """Placeholder for run coroutine"""
+
         LOGGER.debug("run does nothing by default")
 
     def on_start(self, loop):
@@ -96,6 +103,8 @@ class SystemModule():
         pass
 
     def _on_start(self, loop):
+        """'start' event handler"""
+
         self.loop = loop
         self.on_start(loop)
         self.run_task = asyncio.ensure_future(self.run(), loop=loop)
@@ -114,11 +123,12 @@ class SystemModule():
         raise NotImplementedError
     
     def _on_stop(self):
+        """On 'stop' event handler"""
+
         self.on_stop()
         if not self.run_task.done():
             self.run_task.cancel()
-        if self.await_queue:
-            self.await_queue.put_nowait(self.run_task)
+        self.await_queue.put_nowait(self.run_task)
         self.run_task = None
 
     def after_stop(self):
@@ -137,12 +147,15 @@ class SystemModule():
         pass
 
     def _on_shutdown(self):
+        """On 'shutdown' event handler"""        
+
         try:
-            if self.state == 'running':
+            if self.is_running():
                 self._on_stop()
             self.on_shutdown()
         except Exception as ex:
-            LOGGER.exception("Subsystem %s shutdown in error: %s", self.name, ex)
+            LOGGER.exception("Subsystem %s shutdown in error: %s", 
+                             self.name, ex)
 
     def after_shutdown(self):
         """after_shutdown placeholder"""
@@ -150,12 +163,18 @@ class SystemModule():
         pass
 
     def _after_shutdown(self):
+        """After 'shutdown' event handler"""
+
         self.after_shutdown()
 
     def on_fail(self):
+        """On fail placeholder"""
+
         pass
 
     def _on_fail(self):
+        """On 'fail' event handler"""
+
         self.on_fail()
         LOGGER.error('SystemModule %s failed', self.name)
         

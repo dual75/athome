@@ -7,10 +7,10 @@ import sys
 import asyncio
 import logging
 import concurrent
-from  importlib import util
+from contextlib import suppress
+from importlib import util
 from functools import partial
 
-from contextlib.suppress import CancelledError
 
 from athome.module import SystemModule
 from athome.api import plugin
@@ -30,28 +30,33 @@ class Subsystem(SystemModule):
         self.plugins = {}
         self.core = Core()
 
-    async def on_event(self, evt):
+    def on_event(self, evt):
+        LOGGER.debug('plugins subsystem event: %s', evt)
         if not self.is_failed():
-            if evt == 'athome_started':
+            if evt == 'bridge_started':
                 self.start(self.core.loop)
-            elif evt == 'athome_stop':
+            elif evt == 'athome_stopping':
                 self.stop()
             elif evt == 'athome_shutdown':
                 self.shutdown()
 
-    def after_start(self):
+    def on_start(self, loop):
+        super().on_start(loop)
+        LOGGER.info('plugins started')
+
+    def after_start(self, loop):
         self.core.emit('plugins_started')
 
     def on_stop(self):
-        """'stop' event callback method"""
+        """On 'stop' event callback method"""
 
         for name in list(self.plugins.keys()):
-            self._remove_plugin(name)
+            self._deactivate_plugin(name)
         self.running = False
         self.plugins = None
 
     def after_stop(self):
-        self.loop.emit('plugins_stopped')
+        self.core.emit('plugins_stopped')
 
     async def run(self):      
         """Subsystem activity method
@@ -60,36 +65,37 @@ class Subsystem(SystemModule):
         """ 
 
         poll_interval = self.config['plugin_poll_interval']
-        try:
+        with suppress(asyncio.CancelledError):
             while self.running:
                 await self._directory_scan()
                 await asyncio.sleep(poll_interval)
-        except CancelledError as ex:
-            LOGGER.info("Caught CancelledError for plugins subsystem")
 
     async def _directory_scan(self):
         """Scan plugins directory for new, deleted or modified files"""
 
+        plugins_dir = self.config['plugins_dir']
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            LOGGER.debug('plugin check')
             all_files = await self.loop.run_in_executor(executor,
                                                         partial(
                                                             self._find_all,
-                                                            self.config['plugins_dir']
-                                                             )
+                                                            plugins_dir
+                                                            )
                                                        )
             all_file_names = {f[0] for f in all_files}
             memory_file_names = set(self.plugins.keys())
             for fname in memory_file_names - all_file_names:
-                await self._remove_plugin(fname)
+                await self._deactivate_plugin(fname)
 
             changed_files = self._find_changed(all_files)
             for fname, fpath, mtime in changed_files:
                 if fname in list(self.plugins.keys()):
-                    self._remove_plugin(fname)
-                plugin_ = self._load_plugin_module(fname, fpath, self.loop, mtime)
-                self._register_plugin(plugin_)
+                    self._deactivate_plugin(fname)
+                plugin_ = self._load_plugin_module(fname, fpath, self.loop,
+                                                   mtime)
+                self._activate_plugin(plugin_)
 
-    def _register_plugin(self, plugin):
+    def _activate_plugin(self, plugin):
         """Add a plugin from current running set and start it
 
         :param plugin: plugin to be added
@@ -99,7 +105,7 @@ class Subsystem(SystemModule):
         self.plugins[plugin.name] = plugin
         plugin.start(self.loop)
 
-    def _remove_plugin(self, name):
+    def _deactivate_plugin(self, name):
         """Remove a plugin from current 
 
         :param name: name of the plugin to be removed 

@@ -1,19 +1,13 @@
-core: 
-
-    config_poll_interval: 5
-
-
 subsystem:
-           
     hbmqtt:
         enable: true
         config:
             listeners:
                 default:
                     max-connections: 50000
-                    type: tcp
+                    type: 'tcp'
                 local:
-                    bind: 127.0.0.1:1883
+                    bind: '127.0.0.1:1883'
             timeout-disconnect-delay: 2
             auth:
                 plugins: ['auth.anonymous']
@@ -38,7 +32,23 @@ subsystem:
                     ]
  
     plugins:
-        enable: false
+        enable: true
         config:
             plugins_dir: 'plugindir'
             plugin_poll_interval: 5
+
+# logging configuration
+asyncio:
+    debug: false
+
+logging:
+    basicConfig:
+        level: 'INFO'
+    packages:
+        asyncio: 'INFO'
+        asyncio.poll: 'WARNING'
+        transitions: 'WARNING'
+        athome.subsystem.mqttbridge: 'DEBUG'
+        athome.subsystem.plugins: 'DEBUG'
+
+
