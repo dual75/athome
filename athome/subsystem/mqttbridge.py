@@ -53,6 +53,9 @@ class Republisher(object):
                                                 self.listen_task)
                                        )
             self.listen_task = None
+
+    def after_stop(self):
+        LOGGER.info('bridge closed')
             
     async def listen(self):
         LOGGER.debug('Republisher for %s listening', self.url)

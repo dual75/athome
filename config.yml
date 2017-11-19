@@ -37,6 +37,13 @@ subsystem:
             plugins_dir: 'plugindir'
             plugin_poll_interval: 5
 
+
+    aiohttp:
+        enable: true
+        config:
+            addr: 'localhost'
+            port: 8080
+
 # logging configuration
 asyncio:
     debug: false

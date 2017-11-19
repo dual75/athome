@@ -1,3 +1,7 @@
 hbmqtt
 transitions
 PyYAML
+aiohttp
+cchardet
+aiodns
+

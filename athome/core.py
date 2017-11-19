@@ -43,11 +43,14 @@ class Core(SystemModule):
                     ]:
             LOGGER.debug('Loading module %s', name)
             module_name = 'athome.subsystem.{}'.format(name)
-            module = importlib.import_module(module_name)
-            subsystem_class = getattr(module, 'Subsystem')
-            subsystem = subsystem_class(name, self.await_queue)
-            self.subsystems[name] = subsystem
-            subsystem.initialize(self.config['subsystem'][name]['config'])
+            try:
+                module = importlib.import_module(module_name)
+                subsystem_class = getattr(module, 'Subsystem')
+                subsystem = subsystem_class(name, self.await_queue)
+                self.subsystems[name] = subsystem
+                subsystem.initialize(self.config['subsystem'][name]['config'])
+            except:
+                LOGGER.exception(ex)
 
     def emit(self, evt):
         """Propagate event 'evt' to subsystems"""

@@ -12,7 +12,7 @@ from importlib import util
 from functools import partial
 
 
-from athome.module import SystemModule
+from athome.submodule import SubsystemModule
 from athome.api import plugin
 from athome.core import Core
 
@@ -21,17 +21,14 @@ MODULE_PREFIX = '__athome_'
 LOGGER = logging.getLogger(__name__)
 
 
-class Subsystem(SystemModule):
+class Subsystem(SubsystemModule):
     """Plugins subsystem"""
     
     def __init__(self, name, await_queue):
         super().__init__(name, await_queue)
-        self.running = True
         self.plugins = {}
-        self.core = Core()
 
     def on_event(self, evt):
-        LOGGER.debug('plugins subsystem event: %s', evt)
         if not self.is_failed():
             if evt == 'bridge_started':
                 self.start(self.core.loop)
@@ -39,13 +36,6 @@ class Subsystem(SystemModule):
                 self.stop()
             elif evt == 'athome_shutdown':
                 self.shutdown()
-
-    def on_start(self, loop):
-        super().on_start(loop)
-        LOGGER.info('plugins started')
-
-    def after_start(self, loop):
-        self.core.emit('plugins_started')
 
     def on_stop(self):
         """On 'stop' event callback method"""
@@ -118,6 +108,8 @@ class Subsystem(SystemModule):
         del self.plugins[name]
 
     def _find_all(self, plugins_dir):
+        """Find all python modules in plugins dir"""
+
         result = [(f, os.path.join(plugins_dir, f))
                   for f in os.listdir(plugins_dir)
                   if f.endswith('.py')
@@ -126,6 +118,13 @@ class Subsystem(SystemModule):
         return result
         
     def _find_changed(self, files):
+        """Find changed python modules in plugins dir
+
+        Only files with mtime > plugin.mtime are to be considered
+        changed.
+
+        """
+
         result = []
         module_stamps = {
             plugin.name: plugin.mtime

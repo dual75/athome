@@ -10,6 +10,7 @@ import sys
 import signal
 import asyncio
 import logging
+import argparse
 
 from functools import partial
 
@@ -61,8 +62,28 @@ def install_signal_handlers():
                             partial(ask_exit, signame))
 
 def main():
+    parser = argparse.ArgumentParser(description='Manage @home server', prog='engine')
+    parser.add_argument('-d', '--detach', action='store_true', help='Run in background')
+    parser.add_argument('-c', '--config', action='store_true', help='Specify configuration file')
+    parser.add_argument('-v', '--verbosity', action='store_true', help='Turn on verbosity')
+
+    args = parser.parse_args()
+
+    
     config = init_env()
     LOOP.set_debug(config['asyncio']['debug'])
+
+    if args.detach:
+        pid = os.fork() 
+        if pid == -1:
+            LOGGER.error('fork error')
+            sys.exit(-1)
+        elif pid != 0:
+            sys.exit(0)
+        else:
+            os.setsid()
+            os.umask(0)
+    
     install_signal_handlers()
     try:
         CORE.initialize(config)
