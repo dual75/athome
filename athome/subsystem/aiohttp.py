@@ -9,8 +9,9 @@ from athome.submodule import SubsystemModule
 
 LOGGER = logging.getLogger(__name__)
 
+LOGGER.info('load aiohttp')
 
-def handler(request):
+async def handler(request):
     return web.Response(text="OK")
 
 
