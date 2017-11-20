@@ -59,5 +59,6 @@ logging:
         transitions: 'WARNING'
         athome.subsystem.mqttbridge: 'DEBUG'
         athome.subsystem.plugins: 'DEBUG'
+        hbmqtt: 'WARNING'
 
 

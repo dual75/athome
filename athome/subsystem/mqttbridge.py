@@ -65,18 +65,14 @@ class Republisher(object):
         self.publish_stamps = dict()
 
     def _on_start(self):
+        task_list = [
+             asyncio.ensure_future(self._listen(), loop=self.loop),
+        ]
         if self.topics:
-            self.listen_task = asyncio.gather(
-                asyncio.ensure_future(
-                    self._listen(),
-                    loop=self.subs.loop
-                ),
-                asyncio.ensure_future(
-                    self._hash_cleanup(),
-                    loop=self.subs.loop
-                ),
-                loop=self.subs.loop
+            task_list.append(
+                asyncio.ensure_future(self._hash_cleanup(), loop=self.subs.loop)
             )
+        self.run_task = asyncio.gather(*task_list, loop=self.loop)
         self.subs.core.emit('republisher_started')
 
     def _on_stop(self):
@@ -99,15 +95,21 @@ class Republisher(object):
         self.client = MQTTClient()
         try:
             await self.client.connect(self.url)
-            await self.client.subscribe(self.topics)
-            LOGGER.debug('Republisher for %s listening', self.url)
+            LOGGER.debug('broker connected %s', self.url)
+            if self.topics:
+                await self.client.subscribe(self.topics)
+            LOGGER.debug('republisher for %s listening', self.url)
             while True:
                 message = await self.client.deliver_message()
+                LOGGER.debug("message on %s", message.publish_packet.variable_header.topic_name)
                 await self.subs.forward(self.url, message)
         except asyncio.CancelledError:
-            LOGGER.info("Republisher task canceled")
+            LOGGER.info("republisher task canceled")
+        except:
+            LOGGER.exception('exception while republishing')
         finally:
             await self.client.disconnect()
+            LOGGER.info("republisher for %s disconnected", self.url)
             self.client = None
 
     async def forward(self, message):
@@ -121,23 +123,26 @@ class Republisher(object):
 
         packet = message.publish_packet
         topic = packet.variable_header.topic_name
-        message_hash = self._hash_message(message)
-        if message_hash not in self.publish_set:
-            self.publish_set.add(message_hash)
-            self.publish_stamps[message_hash] = time.time()
-            try:
+        try:
+            if not self.topics:
                 await self.client.publish(topic,
                                           packet.payload.data,
                                           message.qos)
-            except:
-                LOGGER.exception('Error while publishing on %s', self.url)
-        else:
-            self.publish_set.remove(message_hash)
-            del self.publish_stamp[message_hash]
+            else:
+                message_hash = self._hash_message(message)
+                if message_hash not in self.publish_set:
+                    self.publish_set.add(message_hash)
+                    self.publish_stamps[message_hash] = time.time()
+                else:
+                    self.publish_set.remove(message_hash)
+                    del self.publish_stamps[message_hash]
+        except:
+            LOGGER.exception('Error while publishing on %s', self.url)
+
 
     async def _hash_cleanup(self):
         while True:
-            await asyncio.sleep(30, loop=self.subs.loop)
+            await asyncio.sleep(60, loop=self.subs.loop)
             now = time.time()
             self.publish_set = self.publish_set - {
                 hash_
@@ -152,7 +157,7 @@ class Republisher(object):
 
     @staticmethod
     def _hash_message(message):
-        packet = message.public_packet
+        packet = message.publish_packet
         result = zlib.crc32(
             packet.variable_header.topic_name.encode('utf-8')
             + packet.payload.data
