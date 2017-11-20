@@ -26,10 +26,11 @@ subsystem:
                     port: 11702
                     username: 'oleffxza'
                     password: '8ViMtnkje343'
-            topics: [
+                    topics: [
                         ['light/1', 0], 
                         ['another', 0]
                     ]
+
  
     plugins:
         enable: true
@@ -46,11 +47,12 @@ subsystem:
 
 # logging configuration
 asyncio:
-    debug: false
+    debug: true
 
 logging:
     basicConfig:
-        level: 'INFO'
+        level: 'DEBUG'
+        #format: '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d: %(message)s'
     packages:
         asyncio: 'INFO'
         asyncio.poll: 'WARNING'

@@ -12,9 +12,10 @@ from concurrent.futures import CancelledError
 from athome.module import SystemModule
 
 LOGGER = logging.getLogger(__name__)
-       
+
 MESSAGE_AWAIT, MESSAGE_EVT, MESSAGE_START, MESSAGE_STOP = range(4)
 Message = namedtuple('Message', ('type', 'value'))
+
 
 class Core(SystemModule):
     """Core system module"""
@@ -40,7 +41,7 @@ class Core(SystemModule):
         # Load subsystems
         for name in [name for name in self.config['subsystem']
                      if self.config['subsystem'][name]['enable']
-                    ]:
+                     ]:
             LOGGER.debug('Loading module %s', name)
             module_name = 'athome.subsystem.{}'.format(name)
             try:
@@ -50,7 +51,7 @@ class Core(SystemModule):
                 self.subsystems[name] = subsystem
                 subsystem.initialize(self.config['subsystem'][name]['config'])
             except:
-                LOGGER.exception(ex)
+                LOGGER.exception('Error in initialization')
 
     def emit(self, evt):
         """Propagate event 'evt' to subsystems"""
@@ -96,7 +97,7 @@ class Core(SystemModule):
         while message.type != MESSAGE_STOP:
             message = await self.await_queue.get()
             if message.type == MESSAGE_AWAIT:
-                await self._await_task(message.value)   
+                await self._await_task(message.value)
             elif message.type == MESSAGE_EVT:
                 await self._propagate_event(message.value)
         LOGGER.info('core.run() coro exited')
@@ -104,7 +105,7 @@ class Core(SystemModule):
     async def _await_task(self, task):
         try:
             if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.info('Now awaiting %s...', str(message))
+                LOGGER.info('Now awaiting %s...', str(task))
             await task
         except CancelledError as ex:
             LOGGER.info('await ... caught CancelledError ...')
@@ -116,11 +117,9 @@ class Core(SystemModule):
     async def _propagate_event(self, evt):
         for subsystem in self.subsystems.values():
             subsystem.on_event(evt)
-            
+
     def run_forever(self, loop):
         """Execute run coroutine until stopped"""
 
         self.start(loop)
         loop.run_until_complete(self.run_task)
-
-

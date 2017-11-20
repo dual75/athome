@@ -2,19 +2,18 @@
 #
 # See the file LICENCE for copying permission.
 
+import asyncio
+import concurrent
+import logging
 import os
 import sys
-import asyncio
-import logging
-import concurrent
 from contextlib import suppress
-from importlib import util
 from functools import partial
+from importlib import util
 
-
-from athome.submodule import SubsystemModule
 from athome.api import plugin
 from athome.core import Core
+from athome.submodule import SubsystemModule
 
 MODULE_PREFIX = '__athome_'
 
@@ -23,7 +22,7 @@ LOGGER = logging.getLogger(__name__)
 
 class Subsystem(SubsystemModule):
     """Plugins subsystem"""
-    
+
     def __init__(self, name, await_queue):
         super().__init__(name, await_queue)
         self.plugins = {}
@@ -48,11 +47,11 @@ class Subsystem(SubsystemModule):
     def after_stop(self):
         self.core.emit('plugins_stopped')
 
-    async def run(self):      
+    async def run(self):
         """Subsystem activity method
 
         This method is a *coroutine*.
-        """ 
+        """
 
         poll_interval = self.config['plugin_poll_interval']
         with suppress(asyncio.CancelledError):
@@ -70,8 +69,8 @@ class Subsystem(SubsystemModule):
                                                         partial(
                                                             self._find_all,
                                                             plugins_dir
-                                                            )
-                                                       )
+                                                        )
+                                                        )
             all_file_names = {f[0] for f in all_files}
             memory_file_names = set(self.plugins.keys())
             for fname in memory_file_names - all_file_names:
@@ -114,9 +113,9 @@ class Subsystem(SubsystemModule):
                   for f in os.listdir(plugins_dir)
                   if f.endswith('.py')
                   and os.path.isfile(os.path.join(plugins_dir, f))
-                 ]
+                  ]
         return result
-        
+
     def _find_changed(self, files):
         """Find changed python modules in plugins dir
 
@@ -129,13 +128,13 @@ class Subsystem(SubsystemModule):
         module_stamps = {
             plugin.name: plugin.mtime
             for plugin in self.plugins.values()
-            }
+        }
         for fname, fpath in files:
             fstat = os.stat(fpath)
             if module_stamps.get(fname, 0) < fstat.st_mtime:
                 result.append((fname, fpath, fstat.st_mtime))
         LOGGER.info("changed plugin modules: %s", str(result))
-        return result  
+        return result
 
     @staticmethod
     def _import_module(module_name, fpath):
@@ -166,10 +165,11 @@ class Subsystem(SubsystemModule):
         engage = getattr(module, plugin.ENGAGE_METHOD, None)
         if engage and asyncio.iscoroutinefunction(engage):
             LOGGER.debug("found plugin %s", fname)
-            result = plugin.Plugin(loop, fname, module, mtime, self.await_queue)
+            result = plugin.Plugin(loop, fname, module,
+                                   mtime, self.await_queue)
             sys.modules[module_name] = result
         else:
-            LOGGER.warning("%s not a plugin, missing coroutine 'engage'", fname)
+            LOGGER.warning(
+                "%s not a plugin, missing coroutine 'engage'", fname)
             raise Exception('not a plugin module, missing coroutine "engage"')
         return result
-

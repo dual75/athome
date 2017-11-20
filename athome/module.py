@@ -76,7 +76,7 @@ class SystemModule():
         pass
 
     def _on_initialize(self, config):
-        """On 'initialize' event handler"""
+        """Before 'initialize' callback"""
 
         LOGGER.debug("Initialize module %s", self.name)
         self.config = config
@@ -88,7 +88,7 @@ class SystemModule():
         pass
 
     def _after_initialize(self, config):
-        """After 'initialize' event handler"""
+        """After 'initialize' callback"""
 
         self.after_initialize(config)
 
@@ -103,7 +103,7 @@ class SystemModule():
         pass
 
     def _on_start(self, loop):
-        """'start' event handler"""
+        """Before 'start' callback"""
 
         self.loop = loop
         self.on_start(loop)
@@ -123,7 +123,7 @@ class SystemModule():
         raise NotImplementedError
     
     def _on_stop(self):
-        """On 'stop' event handler"""
+        """Before 'stop' callback"""
 
         self.on_stop()
         if not self.run_task.done():
@@ -147,7 +147,7 @@ class SystemModule():
         pass
 
     def _on_shutdown(self):
-        """On 'shutdown' event handler"""        
+        """Before 'shutdown' callback"""        
 
         try:
             if self.is_running():
@@ -163,17 +163,17 @@ class SystemModule():
         pass
 
     def _after_shutdown(self):
-        """After 'shutdown' event handler"""
+        """After 'shutdown' callback"""
 
         self.after_shutdown()
 
     def on_fail(self):
-        """On fail placeholder"""
+        """Before fail placeholder"""
 
         pass
 
     def _on_fail(self):
-        """On 'fail' event handler"""
+        """Before 'fail' callback"""
 
         self.on_fail()
         LOGGER.error('SystemModule %s failed', self.name)
