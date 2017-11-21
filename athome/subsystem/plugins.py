@@ -12,7 +12,6 @@ from functools import partial
 from importlib import util
 
 from athome.api import plugin
-from athome.core import Core
 from athome.submodule import SubsystemModule
 
 MODULE_PREFIX = '__athome_'
@@ -27,21 +26,11 @@ class Subsystem(SubsystemModule):
         super().__init__(name, await_queue)
         self.plugins = {}
 
-    def on_event(self, evt):
-        if not self.is_failed():
-            if evt == 'bridge_started':
-                self.start(self.core.loop)
-            elif evt == 'athome_stopping':
-                self.stop()
-            elif evt == 'athome_shutdown':
-                self.shutdown()
-
     def on_stop(self):
         """On 'stop' event callback method"""
 
         for name in list(self.plugins.keys()):
             self._deactivate_plugin(name)
-        self.running = False
         self.plugins = None
 
     def after_stop(self):
@@ -54,8 +43,9 @@ class Subsystem(SubsystemModule):
         """
 
         poll_interval = self.config['plugin_poll_interval']
+        self.core.emit('plugins_started')
         with suppress(asyncio.CancelledError):
-            while self.running:
+            while True:
                 await self._directory_scan()
                 await asyncio.sleep(poll_interval)
 

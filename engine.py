@@ -15,12 +15,12 @@ import yaml
 
 from functools import partial
 
-import athome
+from athome.core import Core
 
 DEFAULT_CONFIG = './config.yml'
 LOGGER = logging.getLogger(__name__)
 
-CORE = athome.Core()
+CORE = Core()
 LOOP = asyncio.get_event_loop()
 
 

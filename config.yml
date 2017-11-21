@@ -31,15 +31,13 @@ subsystem:
                         ['another', 0]
                     ]
 
- 
     plugins:
         enable: true
         config:
             plugins_dir: 'plugindir'
-            plugin_poll_interval: 5
+            plugin_poll_interval: 20
 
-
-    aiohttp:
+    http:
         enable: true
         config:
             addr: 'localhost'
@@ -54,7 +52,7 @@ logging:
         level: 'DEBUG'
         #format: '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d: %(message)s'
     packages:
-        asyncio: 'INFO'
+        asyncio: 'WARNING'
         asyncio.poll: 'WARNING'
         transitions: 'WARNING'
         athome.subsystem.mqttbridge: 'DEBUG'

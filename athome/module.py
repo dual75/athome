@@ -6,6 +6,7 @@ import asyncio
 import logging
 
 from transitions import Machine
+from athome import Message, MESSAGE_AWAIT, MESSAGE_RESTART
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class SystemModule():
                 'loaded',
                 'ready',
                 'running',
+                'restarting',
                 'closed',
                 'failed'
               ]
@@ -35,6 +37,12 @@ class SystemModule():
                 'dest':'running',
                 'before': ['_on_start'],
                 'after': ['_after_start']
+                },
+            {
+                'trigger':'restart',
+                'source':'running',
+                'dest':'restarting',
+                'before': ['_on_restart']
                 },
             {
                 'trigger':'stop',
@@ -117,6 +125,14 @@ class SystemModule():
     def _after_start(self, loop):
         self.after_start(loop)
 
+    def _on_restart(self):
+        def restart_callback(future):
+            LOGGER.debug('run_task for %s complete, now restarting', self.name)
+            self.start()
+
+        self.run_task.add_done_callback(restart_callback)
+        self._on_stop()
+
     def on_stop(self):
         """Perform module stop activities, mandatory"""
 
@@ -128,7 +144,7 @@ class SystemModule():
         self.on_stop()
         if not self.run_task.done():
             self.run_task.cancel()
-        self.await_queue.put_nowait(self.run_task)
+        self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.run_task))
         self.run_task = None
 
     def after_stop(self):

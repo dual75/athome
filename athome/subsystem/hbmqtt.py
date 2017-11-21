@@ -22,12 +22,12 @@ class Subsystem(SubsystemModule):
         """Instantiate a fresh broker"""
 
         self.broker = Broker(self.config)
-        self.core.emit('broker_starting')
+        self.core.emit('hbmqtt_starting')
 
     def after_start(self, loop):
         async def wait_broker():
             await asyncio.sleep(5)
-            self.core.emit('broker_started')
+            self.core.emit('hbmqtt_started')
         self.core.faf(wait_broker())
 
     async def run(self):
@@ -42,7 +42,7 @@ class Subsystem(SubsystemModule):
         self.broker = None
 
     def after_stop(self):
-        self.core.emit('broker_stopping')
+        self.core.emit('hbmqtt_stopping')
         
     def on_shutdown(self):
         """On subsystem shutdown shutdown broker if existing"""

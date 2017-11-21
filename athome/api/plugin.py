@@ -2,18 +2,12 @@
 #
 # See the file LICENCE for copying permission.
 
-import os, sys
 import asyncio
 import logging
-import functools
-import concurrent
-import importlib
-import contextlib
-from functools import partial
+from contextlib import suppress
 
 from transitions import Machine
 
-import athome
 from athome.core import Message, MESSAGE_AWAIT
 
 ENGAGE_METHOD   = 'engage'
@@ -72,7 +66,7 @@ class Plugin(object):
 
         """
 
-        with contextlib.suppress(asyncio.CancelledError):
+        with suppress(asyncio.CancelledError):
             await getattr(self.module, ENGAGE_METHOD)(self.loop)
                 
     def _on_start(self, loop):

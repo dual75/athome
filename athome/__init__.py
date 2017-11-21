@@ -4,5 +4,9 @@
 
 __all__ = ['core', 'module']
 
-from . core import Core
+from collections import namedtuple
+
+MESSAGE_AWAIT, MESSAGE_EVT, MESSAGE_START, MESSAGE_STOP, MESSAGE_RESTART = range(5)
+Message = namedtuple('Message', ('type', 'value'))
+
 

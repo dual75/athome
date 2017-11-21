@@ -15,8 +15,6 @@ from athome.core import Core
 
 LOGGER = logging.getLogger(__name__)
 
-LOGGER.info('load aiohttp')
-
 
 def http_failure(msg):
     response_data = {'status': 'failure', "message": msg}
@@ -32,15 +30,35 @@ async def decode(request):
         return http_failure("data not properly formated")
 
 
-async def manage_handler(request):
+async def core_handler(request):
     json_request = await decode(request)
-    if json_request['command'] == 'stop':
-        Core().stop()
+    core = Core()
+    command = json_request['command']
+    if command == 'stop':
+        core.stop()
+    elif command == 'restart':
+        core.restart()
 
     response_data = {'status': 'ok'}
     body = json.dumps(response_data).encode('utf-8')
     return aiohttp.web.Response(body=body, content_type="application/json")
 
+
+async def subsystem_handler(request):
+    json_request = await decode(request)
+    core = Core()
+    name = json_request['name']
+    command = json_request['command']
+    if command == 'start':
+        core.subsystems[name].start(core.loop)
+    elif command == 'stop':
+        core.subsystems[name].stop()
+    elif command == 'restart':
+        core.subsystems[name].restart()
+
+    response_data = {'status': 'ok'}
+    body = json.dumps(response_data).encode('utf-8')
+    return aiohttp.web.Response(body=body, content_type="application/json")
 
 async def publish_handler(request):
     json_request = await decode(request)
@@ -57,7 +75,7 @@ async def publish_handler(request):
 
 
 class Subsystem(SubsystemModule):
-    """Subsystem embedding aiohttp"""
+    """Subsystem embedding http"""
 
     def __init__(self, name, await_queue):
         super().__init__(name, await_queue)
@@ -66,26 +84,27 @@ class Subsystem(SubsystemModule):
     def on_start(self, loop):
         """Instantiate a fresh server"""
 
-        self.core.emit('aiohttp_starting')
+        self.core.emit('http_starting')
         self.app = aiohttp.web.Application(loop=self.core.loop)
-        self.app.router.add_route('POST', '/manage', manage_handler)
+        self.app.router.add_route('POST', '/core', core_handler)
         self.app.router.add_route('POST', '/publish', publish_handler)
+        self.app.router.add_route('POST', '/subsystem', subsystem_handler)
 
     async def run(self):
         """Start broker"""
 
-        LOGGER.debug('starting aiohttp server')
+        LOGGER.debug('starting http server')
         await self.core.loop.create_server(self.app.make_handler(),
                                            self.config['addr'],
                                            self.config['port']
                                            )
-        self.core.emit('aiohttp_started')
+        self.core.emit('http_started')
 
     def on_stop(self):
         """Shut down aiohttp application"""
 
         async def stop_server():
-            self.core.emit('aiohttp_stopping')
+            self.core.emit('http_stopping')
             await self.server.shutdown()
-            self.core.emit('aiohttp_stopped')
+            self.core.emit('http_stopped')
         self.core.faf(stop_server())

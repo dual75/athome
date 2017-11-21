@@ -9,12 +9,11 @@ import logging
 from collections import namedtuple
 from concurrent.futures import CancelledError
 
+from athome import Message, MESSAGE_AWAIT, MESSAGE_EVT, \
+    MESSAGE_START, MESSAGE_STOP, MESSAGE_RESTART
 from athome.module import SystemModule
 
 LOGGER = logging.getLogger(__name__)
-
-MESSAGE_AWAIT, MESSAGE_EVT, MESSAGE_START, MESSAGE_STOP = range(4)
-Message = namedtuple('Message', ('type', 'value'))
 
 
 class Core(SystemModule):
@@ -71,7 +70,12 @@ class Core(SystemModule):
 
     def _on_stop(self):
         self.emit('athome_stopping')
-        self.await_queue.put_nowait(Message(MESSAGE_STOP, None))
+        async def put_stop():
+            secs = 5
+            LOGGER.info("wating %d secs for subsystems to stop", secs)
+            await asyncio.sleep(secs, loop=self.loop)
+            await self.await_queue.put(Message(MESSAGE_STOP, None))
+        self.faf(put_stop())
 
     def after_stop(self):
         self.emit('athome_stopped')
@@ -88,9 +92,9 @@ class Core(SystemModule):
             if run_task:
                 if not run_task.done():
                     run_task.cancel()
-                self.await_queue.put_nowait(run_task)
+                self.await_queue.put_nowait(Message(MESSAGE_AWAIT, run_task))
             subsystem.fail()
-        self.await_queue.put('exit')
+        self.await_queue.put(Message(MESSAGE_STOP, None))
 
     async def run(self):
         message = Message(MESSAGE_START, None)
