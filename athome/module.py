@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+import multiprocessing
 
 from transitions import Machine
 from athome import Message, MESSAGE_AWAIT, MESSAGE_RESTART
@@ -78,6 +79,9 @@ class SystemModule():
         self.run_task = None
         self.await_queue = await_queue
 
+    async def on_event(self, evt):
+        pass
+
     def on_initialize(self):
         """on_initialize placeholder"""
 
@@ -100,6 +104,11 @@ class SystemModule():
 
         self.after_initialize(config)
 
+    async def read_events(self):
+        while True:
+            event = await self.input_queue.get()
+            self.on_event(event)
+
     async def run(self):
         """Placeholder for run coroutine"""
 
@@ -115,7 +124,9 @@ class SystemModule():
 
         self.loop = loop
         self.on_start(loop)
+
         self.run_task = asyncio.ensure_future(self.run(), loop=loop)
+
 
     def after_start(self, loop):
         """after_start placeholder"""

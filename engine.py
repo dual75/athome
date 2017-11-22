@@ -31,10 +31,11 @@ def init_env(config_file):
     logconf = config['logging']
     logging.basicConfig(**logconf['basicConfig'])
     for pkg in logconf['packages']:
-        logging.getLogger(pkg).setLevel(getattr(
-            logging,
-            logconf['packages'][pkg]
-        )
+        logging.getLogger(pkg).setLevel(
+            getattr(
+                logging,
+                logconf['packages'][pkg]
+            )
         )
     LOGGER.debug(sys.path)
     return config

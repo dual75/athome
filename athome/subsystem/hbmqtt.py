@@ -38,15 +38,17 @@ class Subsystem(SubsystemModule):
     def on_stop(self):
         """On subsystem stop shutdown broker"""
 
-        self.core.faf(self.broker.shutdown())
-        self.broker = None
-
-    def after_stop(self):
         self.core.emit('hbmqtt_stopping')
+        async def stop_broker():
+            await self.broker.shutdown()
+            self.broker = None
+            self.core.emit('hbmqtt_stopped')
+        self.core.faf(stop_broker())
         
     def on_shutdown(self):
         """On subsystem shutdown shutdown broker if existing"""
 
         if self.broker:
             self.on_stop()
+        super().on_shutdown()
 

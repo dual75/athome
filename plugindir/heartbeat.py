@@ -10,7 +10,7 @@ A simple @home plugin, that publishes every 5 seconds.
 import logging
 import asyncio
 from athome.api import mqtt
-from contexlib import suppress
+from contextlib import suppress
 
 LOGGER = logging.getLogger(__name__)
 

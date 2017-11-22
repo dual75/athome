@@ -11,7 +11,7 @@ from transitions import Machine
 from hbmqtt.client import ClientException, ConnectException, MQTTClient
 
 from athome.core import Core
-from athome.module import SystemModule
+from athome.submodule import SubsystemModule
 from athome import Message, MESSAGE_AWAIT
 
 LOGGER = logging.getLogger(__name__)
@@ -201,7 +201,7 @@ class Republisher(object):
         return result
 
 
-class Subsystem(SystemModule):
+class Subsystem(SubsystemModule):
     """MQTT Bridge subsystem"""
 
     def __init__(self, name, await_queue):

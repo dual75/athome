@@ -6,11 +6,10 @@ import asyncio
 import importlib
 import logging
 
-from collections import namedtuple
 from concurrent.futures import CancelledError
 
 from athome import Message, MESSAGE_AWAIT, MESSAGE_EVT, \
-    MESSAGE_START, MESSAGE_STOP, MESSAGE_RESTART
+    MESSAGE_START, MESSAGE_STOP, MESSAGE_RESTART, MESSAGE_SHUTDOWN
 from athome.module import SystemModule
 
 LOGGER = logging.getLogger(__name__)
@@ -72,13 +71,20 @@ class Core(SystemModule):
         self.emit('athome_stopping')
         async def put_stop():
             secs = 5
-            LOGGER.info("wating %d secs for subsystems to stop", secs)
+            LOGGER.info("wating %d secs for subsystems to shutdown", secs)
             await asyncio.sleep(secs, loop=self.loop)
             await self.await_queue.put(Message(MESSAGE_STOP, None))
-        self.faf(put_stop())
+            self.emit('athome_stopped')
+        self.faf(put_stop())   
 
-    def after_stop(self):
-        self.emit('athome_stopped')
+    def on_shutdown(self):
+        self.emit('athome_shutdown')
+        async def put_shutdown():
+            secs = 5
+            LOGGER.info("wating %d secs for subsystems to shutdown", secs)
+            await asyncio.sleep(secs, loop=self.loop)
+            await self.await_queue.put(Message(MESSAGE_SHUTDOWN, None))
+        self.faf(put_shutdown())
 
     def on_fail(self):
         """Failure event handler
@@ -120,7 +126,8 @@ class Core(SystemModule):
 
     async def _propagate_event(self, evt):
         for subsystem in self.subsystems.values():
-            subsystem.on_event(evt)
+            LOGGER.info('propagate event %s to subsystem %s', evt, subsystem.name)
+            await subsystem.input_queue.put(evt)
 
     def run_forever(self, loop):
         """Execute run coroutine until stopped"""

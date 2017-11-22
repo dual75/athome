@@ -36,7 +36,7 @@ class Subsystem(SubsystemModule):
     def after_stop(self):
         self.core.emit('plugins_stopped')
 
-    async def run(self):
+    async def run(self): 
         """Subsystem activity method
 
         This method is a *coroutine*.

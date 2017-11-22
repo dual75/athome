@@ -1,6 +1,7 @@
 subsystem:
     hbmqtt:
         enable: true
+        process: true
         config:
             listeners:
                 default:
@@ -14,7 +15,8 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: true
+        enable: false
+        process: false
         config:
             brokers:
                 local:
@@ -33,12 +35,14 @@ subsystem:
 
     plugins:
         enable: true
+        process: true
         config:
             plugins_dir: 'plugindir'
             plugin_poll_interval: 20
 
     http:
         enable: true
+        process: false
         config:
             addr: 'localhost'
             port: 8080
