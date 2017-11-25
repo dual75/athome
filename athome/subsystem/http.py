@@ -60,6 +60,7 @@ async def subsystem_handler(request):
     body = json.dumps(response_data).encode('utf-8')
     return aiohttp.web.Response(body=body, content_type="application/json")
 
+
 async def publish_handler(request):
     json_request = await decode(request)
     client = await mqtt.local_client()
@@ -81,7 +82,7 @@ class Subsystem(SubsystemModule):
         super().__init__(name, await_queue)
         self.app = None
 
-    def on_start(self, loop):
+    def on_start(self):
         """Instantiate a fresh server"""
 
         self.core.emit('http_starting')

@@ -68,7 +68,6 @@ class SystemModule():
         ]
 
     def __init__(self, name, await_queue=None):
-
         self.name = name
         self.machine = Machine(model=self,
                             states=SystemModule.states,
@@ -79,62 +78,56 @@ class SystemModule():
         self.run_task = None
         self.await_queue = await_queue
 
-    async def on_event(self, evt):
-        pass
+    #async def on_event(self, evt):
+    #    pass
+
+
+    def _on_initialize(self, loop, config):
+        """Before 'initialize' callback"""
+
+        LOGGER.debug("Initialize module %s", self.name)
+        self.loop = loop
+        self.config = config
+        self.on_initialize()
 
     def on_initialize(self):
         """on_initialize placeholder"""
 
         pass
 
-    def _on_initialize(self, config):
-        """Before 'initialize' callback"""
+    def _after_initialize(self, loop, config):
+        """After 'initialize' callback"""
 
-        LOGGER.debug("Initialize module %s", self.name)
-        self.config = config
-        self.on_initialize()
+        self.after_initialize()
 
-    def after_initialize(self, config):
+    def after_initialize(self):
         """after_initialize placeholder"""
 
         pass
-
-    def _after_initialize(self, config):
-        """After 'initialize' callback"""
-
-        self.after_initialize(config)
-
-    async def read_events(self):
-        while True:
-            event = await self.input_queue.get()
-            self.on_event(event)
 
     async def run(self):
         """Placeholder for run coroutine"""
 
         LOGGER.debug("run does nothing by default")
 
-    def on_start(self, loop):
+    def _on_start(self):
+        """Before 'start' callback"""
+
+        self.on_start()
+        self.run_task = asyncio.ensure_future(self.run(), loop=self.loop)
+
+    def on_start(self):
         """on_start placeholder"""
 
         pass
 
-    def _on_start(self, loop):
-        """Before 'start' callback"""
+    def _after_start(self):
+        self.after_start()
 
-        self.loop = loop
-        self.on_start(loop)
-
-        self.run_task = asyncio.ensure_future(self.run(), loop=loop)
-
-
-    def after_start(self, loop):
+    def after_start(self):
         """after_start placeholder"""
 
         pass
-
-    def _after_start(self, loop):
-        self.after_start(loop)
 
     def _on_restart(self):
         def restart_callback(future):
@@ -144,11 +137,6 @@ class SystemModule():
         self.run_task.add_done_callback(restart_callback)
         self._on_stop()
 
-    def on_stop(self):
-        """Perform module stop activities, mandatory"""
-
-        raise NotImplementedError
-    
     def _on_stop(self):
         """Before 'stop' callback"""
 
@@ -158,18 +146,18 @@ class SystemModule():
         self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.run_task))
         self.run_task = None
 
-    def after_stop(self):
-        """after_start placeholder"""
+    def on_stop(self):
+        """Perform module stop activities, mandatory"""
 
-        pass
+        raise NotImplementedError
 
     def _after_stop(self):
         """After 'stop' callback"""
 
         self.after_stop()
 
-    def on_shutdown(self):
-        """on_shutdown placeholder"""
+    def after_stop(self):
+        """after_start placeholder"""
 
         pass
 
@@ -184,18 +172,19 @@ class SystemModule():
             LOGGER.exception("Subsystem %s shutdown in error: %s", 
                              self.name, ex)
 
-    def after_shutdown(self):
-        """after_shutdown placeholder"""
+    def on_shutdown(self):
+        """on_shutdown placeholder"""
 
         pass
+
 
     def _after_shutdown(self):
         """After 'shutdown' callback"""
 
         self.after_shutdown()
 
-    def on_fail(self):
-        """Before fail placeholder"""
+    def after_shutdown(self):
+        """after_shutdown placeholder"""
 
         pass
 
@@ -204,5 +193,10 @@ class SystemModule():
 
         self.on_fail()
         LOGGER.error('SystemModule %s failed', self.name)
+
+    def on_fail(self):
+        """Before fail placeholder"""
+
+        pass
 
 

@@ -18,13 +18,13 @@ class Subsystem(SubsystemModule):
         super().__init__(name, await_queue)
         self.broker = None
 
-    def on_start(self, loop):
+    def on_start(self):
         """Instantiate a fresh broker"""
 
         self.broker = Broker(self.config)
         self.core.emit('hbmqtt_starting')
 
-    def after_start(self, loop):
+    def after_start(self):
         async def wait_broker():
             await asyncio.sleep(5)
             self.core.emit('hbmqtt_started')

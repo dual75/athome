@@ -47,25 +47,45 @@ class Core(SystemModule):
                 subsystem_class = getattr(module, 'Subsystem')
                 subsystem = subsystem_class(name, self.await_queue)
                 self.subsystems[name] = subsystem
-                subsystem.initialize(self.config['subsystem'][name]['config'])
+                subsystem.initialize(self.loop, self.config['subsystem'][name]['config'])
             except:
                 LOGGER.exception('Error in initialization')
 
-    def emit(self, evt):
-        """Propagate event 'evt' to subsystems"""
-        self.await_queue.put_nowait(Message(MESSAGE_EVT, evt))
+    def run_forever(self):
+        """Execute run coroutine until stopped"""
 
-    def after_start(self, loop):
+        self.start()
+        self.loop.run_until_complete(self.run_task)
+
+    async def run(self):
+        message = Message(MESSAGE_START, None)
+        while message.type != MESSAGE_STOP:
+            message = await self.await_queue.get()
+            if message.type == MESSAGE_AWAIT:
+                await self._await_task(message.value)
+            elif message.type == MESSAGE_EVT:
+                await self._propagate_event(message.value)
+        LOGGER.info('core.run() coro exited')
+
+    async def _await_task(self, task):
+        try:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.info('Now awaiting %s...', str(task))
+            await task
+        except CancelledError as ex:
+            LOGGER.info('await ... caught CancelledError ...')
+        except Exception as ex:
+            LOGGER.warning("await... caught %s on await ...", ex)
+        finally:
+            LOGGER.info('await ... done')
+
+    async def _propagate_event(self, evt):
+        for subsystem in self.subsystems.values():
+            LOGGER.info('propagate event %s to subsystem %s', evt, subsystem.name)
+            await subsystem.event_queue.put(evt)
+
+    def after_start(self):
         self.emit("athome_started")
-
-    def fire_and_forget(self, coro):
-        """Create task from coro or awaitable and put it into await_queue"""
-
-        task = asyncio.ensure_future(coro, loop=self.loop)
-        self.await_queue.put_nowait(Message(MESSAGE_AWAIT, task))
-
-    # shortcut for function
-    faf = fire_and_forget
 
     def _on_stop(self):
         self.emit('athome_stopping')
@@ -102,35 +122,16 @@ class Core(SystemModule):
             subsystem.fail()
         self.await_queue.put(Message(MESSAGE_STOP, None))
 
-    async def run(self):
-        message = Message(MESSAGE_START, None)
-        while message.type != MESSAGE_STOP:
-            message = await self.await_queue.get()
-            if message.type == MESSAGE_AWAIT:
-                await self._await_task(message.value)
-            elif message.type == MESSAGE_EVT:
-                await self._propagate_event(message.value)
-        LOGGER.info('core.run() coro exited')
+    def emit(self, evt):
+        """Propagate event 'evt' to subsystems"""
+        self.await_queue.put_nowait(Message(MESSAGE_EVT, evt))
 
-    async def _await_task(self, task):
-        try:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.info('Now awaiting %s...', str(task))
-            await task
-        except CancelledError as ex:
-            LOGGER.info('await ... caught CancelledError ...')
-        except Exception as ex:
-            LOGGER.warning("await... caught %s on await ...", ex)
-        finally:
-            LOGGER.info('await ... done')
+    def fire_and_forget(self, coro):
+        """Create task from coro or awaitable and put it into await_queue"""
 
-    async def _propagate_event(self, evt):
-        for subsystem in self.subsystems.values():
-            LOGGER.info('propagate event %s to subsystem %s', evt, subsystem.name)
-            await subsystem.input_queue.put(evt)
+        task = asyncio.ensure_future(coro, loop=self.loop)
+        self.await_queue.put_nowait(Message(MESSAGE_AWAIT, task))
 
-    def run_forever(self, loop):
-        """Execute run coroutine until stopped"""
+    # shortcut for function
+    faf = fire_and_forget
 
-        self.start(loop)
-        loop.run_until_complete(self.run_task)

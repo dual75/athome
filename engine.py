@@ -95,8 +95,8 @@ def main():
 
     install_signal_handlers()
     try:
-        CORE.initialize(config)
-        CORE.run_forever(LOOP)
+        CORE.initialize(LOOP, config)
+        CORE.run_forever()
         result = 0
     except KeyboardInterrupt as ex:
         CORE.stop()
