@@ -49,10 +49,10 @@ def ask_exit(signame):
     """
 
     LOGGER.info("got signal %s exit" % signame)
-    CORE.stop()
+    CORE.shutdown()
 
 
-def install_signal_handlers():
+def install_signal_handlers(args):
     """Install signal handlers for SIGINT and SIGTERM
 
     Parameters:
@@ -78,7 +78,6 @@ def main():
                         action='store_true', help='Turn on verbosity')
 
     args = parser.parse_args()
-
     config = init_env(args.config)
     LOOP.set_debug(config['asyncio']['debug'])
 
@@ -93,7 +92,7 @@ def main():
             os.setsid()
             os.umask(0)
 
-    install_signal_handlers()
+    install_signal_handlers(args)
     try:
         CORE.initialize(LOOP, config)
         CORE.run_forever()
@@ -105,10 +104,9 @@ def main():
     except Exception as ex:
         LOGGER.exception(ex)
         result = -1
-    finally:
-        CORE.shutdown()
     sys.exit(result)
 
 
 if __name__ == '__main__':
     main()
+

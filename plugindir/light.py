@@ -26,10 +26,8 @@ async def engage(loop):
                 value = int(message.data.decode('utf-8')) 
                 if value:
                     print('TURNED ON')
-                    await client.publish('light/1', b'1')
                 else:
                     print('TURNED OFF')
-                    await client.publish('light/1', b'0')
             except:
                 LOGGER.exception('Errore di conversione')
     finally:

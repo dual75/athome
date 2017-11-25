@@ -22,6 +22,9 @@ subsystem:
                 local:
                     protocol: 'mqtt'
                     host: 'localhost'
+                    topics: [
+                        ['another', 1]
+                    ]
                 single:
                     protocol: 'mqtt'
                     host: 'm23.cloudmqtt.com'

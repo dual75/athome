@@ -47,7 +47,10 @@ class Core(SystemModule):
                 subsystem_class = getattr(module, 'Subsystem')
                 subsystem = subsystem_class(name, self.await_queue)
                 self.subsystems[name] = subsystem
-                subsystem.initialize(self.loop, self.config['subsystem'][name]['config'])
+                subsystem.initialize(
+                    self.loop, 
+                    self.config['subsystem'][name]['config']
+                )
             except:
                 LOGGER.exception('Error in initialization')
 
@@ -59,7 +62,7 @@ class Core(SystemModule):
 
     async def run(self):
         message = Message(MESSAGE_START, None)
-        while message.type != MESSAGE_STOP:
+        while message.type != MESSAGE_SHUTDOWN:
             message = await self.await_queue.get()
             if message.type == MESSAGE_AWAIT:
                 await self._await_task(message.value)
@@ -70,7 +73,7 @@ class Core(SystemModule):
     async def _await_task(self, task):
         try:
             if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.info('Now awaiting %s...', str(task))
+                LOGGER.debug('Now awaiting %s...', str(task))
             await task
         except CancelledError as ex:
             LOGGER.info('await ... caught CancelledError ...')
@@ -92,7 +95,6 @@ class Core(SystemModule):
             secs = 5
             LOGGER.info("wating %d secs for subsystems to shutdown", secs)
             await asyncio.sleep(secs, loop=self.loop)
-            await self.await_queue.put(Message(MESSAGE_STOP, None))
             self.emit('athome_stopped')
         self.faf(put_stop())   
 

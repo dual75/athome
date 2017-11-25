@@ -19,7 +19,6 @@ class SystemModule():
                 'loaded',
                 'ready',
                 'running',
-                'restarting',
                 'closed',
                 'failed'
               ]
@@ -38,12 +37,6 @@ class SystemModule():
                 'dest':'running',
                 'before': ['_on_start'],
                 'after': ['_after_start']
-                },
-            {
-                'trigger':'restart',
-                'source':'running',
-                'dest':'restarting',
-                'before': ['_on_restart']
                 },
             {
                 'trigger':'stop',
@@ -122,20 +115,14 @@ class SystemModule():
         pass
 
     def _after_start(self):
+        """After 'start' callback"""
+
         self.after_start()
 
     def after_start(self):
         """after_start placeholder"""
 
         pass
-
-    def _on_restart(self):
-        def restart_callback(future):
-            LOGGER.debug('run_task for %s complete, now restarting', self.name)
-            self.start()
-
-        self.run_task.add_done_callback(restart_callback)
-        self._on_stop()
 
     def _on_stop(self):
         """Before 'stop' callback"""
@@ -176,7 +163,6 @@ class SystemModule():
         """on_shutdown placeholder"""
 
         pass
-
 
     def _after_shutdown(self):
         """After 'shutdown' callback"""
