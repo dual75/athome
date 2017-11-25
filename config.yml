@@ -15,7 +15,7 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: false
+        enable: true
         process: false
         config:
             brokers:
@@ -56,7 +56,7 @@ logging:
         level: 'DEBUG'
         #format: '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d: %(message)s'
     packages:
-        asyncio: 'WARNING'
+        asyncio: 'INFO'
         asyncio.poll: 'WARNING'
         transitions: 'WARNING'
         athome.subsystem.mqttbridge: 'DEBUG'

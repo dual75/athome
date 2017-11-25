@@ -3,9 +3,13 @@
 # See the file LICENCE for copying permission.
 
 import asyncio
+import logging
 
 from athome.module import SystemModule
 from athome.core import Core
+
+LOGGER = logging.getLogger(__name__)
+
 
 class SubsystemModule(SystemModule):
 
@@ -15,16 +19,20 @@ class SubsystemModule(SystemModule):
         self.event_task = None
         self.event_queue = asyncio.Queue()
 
-    def on_initialize(self):
-        self.input_task = asyncio.ensure_future(self._read_events(), 
+    def _on_initialize(self, loop, config):
+        """Before 'initialize' callback"""
+
+        super()._on_initialize(loop, config)
+        self.event_task = asyncio.ensure_future(self._read_events(), 
                                                 loop=self.core.loop)
 
     async def _read_events(self):
         while True:
-            event = await self.input_queue.get()
+            event = await self.event_queue.get()
             await self.on_event(event)
 
     async def on_event(self, evt):
+        LOGGER.debug('subsystem %s got event %s', self.name, evt)
         if not self.is_failed():
             if evt == 'athome_started':
                 self.start()
@@ -37,5 +45,4 @@ class SubsystemModule(SystemModule):
         LOGGER.debug('canceling input_task for subsystem %s', self.name)
         self.event_task.cancel()
         self.await_queue.put_nowait(self.event_task)
-
 

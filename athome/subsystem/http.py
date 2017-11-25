@@ -109,3 +109,4 @@ class Subsystem(SubsystemModule):
             await self.app.shutdown()
             self.core.emit('http_stopped')
         self.core.faf(stop_server())
+

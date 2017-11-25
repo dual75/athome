@@ -212,7 +212,7 @@ class Subsystem(SubsystemModule):
         self.topics = None
         self.core = Core()
 
-    def on_event(self, evt):
+    async def on_event(self, evt):
         LOGGER.debug('hbmqttbridge event handler: %s', evt)
         if not self.is_failed():
             if evt == 'hbmqtt_started':
@@ -237,7 +237,7 @@ class Subsystem(SubsystemModule):
     def _compose_url(broker):
         result = ["%s://" % broker['protocol']]
         if all(k in broker for k in ('username', 'password')):
-            result.append('%(username)s:%(password)s@' % broker)
+                result.append('%(username)s:%(password)s@' % broker)
         result.append(broker['host'])
         if 'port' in broker:
             result.append(":%d" % broker['port'])
@@ -248,7 +248,6 @@ class Subsystem(SubsystemModule):
     def on_start(self, loop):
         """Initialize or reinitialize subsystem state"""
 
-        self.running = True
         self.republishers = []
 
     async def run(self):

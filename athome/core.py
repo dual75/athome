@@ -81,7 +81,6 @@ class Core(SystemModule):
 
     async def _propagate_event(self, evt):
         for subsystem in self.subsystems.values():
-            LOGGER.info('propagate event %s to subsystem %s', evt, subsystem.name)
             await subsystem.event_queue.put(evt)
 
     def after_start(self):
