@@ -17,7 +17,7 @@ LOGGER = logging.getLogger(__name__)
 async def engage(loop):
     LOGGER.info("Light plugin engage")
     client = await mqtt.local_client()
-    await client.subscribe((('athome/bridged/light/1', 1),))
+    await client.subscribe((('light/1', 1),))
     try:
         while True:
             message = await client.deliver_message()

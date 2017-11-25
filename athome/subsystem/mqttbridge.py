@@ -196,7 +196,6 @@ class Republisher(object):
         result = zlib.crc32(
             packet.variable_header.topic_name.encode('utf-8')
             + packet.payload.data
-            + bytes(message.qos)
         )
         return result
 
@@ -216,7 +215,7 @@ class Subsystem(SubsystemModule):
         LOGGER.debug('hbmqttbridge event handler: %s', evt)
         if not self.is_failed():
             if evt == 'hbmqtt_started':
-                self.start(self.core.loop)
+                self.start()
             elif evt == 'hbmqtt_stopping':
                 self.stop()
             elif evt == 'athome_shutdown':
@@ -245,7 +244,7 @@ class Subsystem(SubsystemModule):
         LOGGER.debug('Composed url %s', result)
         return result
 
-    def on_start(self, loop):
+    def on_start(self):
         """Initialize or reinitialize subsystem state"""
 
         self.republishers = []
