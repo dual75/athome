@@ -8,6 +8,8 @@
 import argparse
 import asyncio
 import logging
+import logging.config
+import logging.handlers
 import os
 import signal
 import sys
@@ -27,16 +29,9 @@ LOOP = asyncio.get_event_loop()
 def init_env(config_file):
     """Initialize logging an sys.path"""
 
-    config = yaml.load(open(config_file, 'rb'))
+    config = yaml.safe_load(open(config_file, 'rb'))
     logconf = config['logging']
-    logging.basicConfig(**logconf['basicConfig'])
-    for pkg in logconf['packages']:
-        logging.getLogger(pkg).setLevel(
-            getattr(
-                logging,
-                logconf['packages'][pkg]
-            )
-        )
+    logging.config.dictConfig(logconf)
     LOGGER.debug(sys.path)
     return config
 

@@ -1,3 +1,4 @@
+
 subsystem:
     hbmqtt:
         enable: true
@@ -33,8 +34,8 @@ subsystem:
                     password: '8ViMtnkje343'
                     topics: [
                         ['light/1', 0], 
-                        ['another', 0]
-                    ]
+                    ['another', 0]
+                ]
 
     plugins:
         enable: true
@@ -55,15 +56,44 @@ asyncio:
     debug: true
 
 logging:
-    basicConfig:
-        level: 'DEBUG'
-        #format: '%(asctime)s [%(levelname)s] %(module)s:%(lineno)d: %(message)s'
-    packages:
-        asyncio: 'INFO'
-        asyncio.poll: 'WARNING'
-        transitions: 'WARNING'
-        athome.subsystem.mqttbridge: 'DEBUG'
-        athome.subsystem.plugins: 'DEBUG'
-        hbmqtt: 'WARNING'
+    version: 1
+    disable_existing_loggers: true
+    root:
+        level: 'INFO'
+        handlers: ['syslog_handler', 'console_handler']
+        formatter: 'standard'
+        
+    formatters:
+        standard:
+            format: "%(levelname)s %(asctime)s [%(name)s]  %(message)s"
+
+    handlers:
+        console_handler:
+            class: 'logging.StreamHandler'
+            level: 'DEBUG'
+            formatter: 'standard'
+            stream: 'ext://sys.stdout'
+
+        syslog_handler:
+            class: 'logging.handlers.SysLogHandler'
+            level: 'INFO'
+            formatter: 'standard'
+
+    loggers: 
+        asyncio:
+            level: 'INFO'
+            handlers: ['syslog_handler', 'console_handler']
+        transitions:
+            level: 'WARNING'
+            handlers: ['syslog_handler', 'console_handler']
+        athome.subsystem.mqttbridge:
+            level: 'DEBUG'
+            handlers: ['syslog_handler', 'console_handler']
+        athome.subsystem.plugins:
+            level: 'DEBUG'
+            handlers: ['syslog_handler', 'console_handler']
+        hbmqtt: 
+            level: 'DEBUG'
+            handlers: ['syslog_handler', 'console_handler']
 
 
