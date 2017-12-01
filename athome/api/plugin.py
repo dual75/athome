@@ -10,10 +10,11 @@ from transitions import Machine
 
 from athome.core import Message, MESSAGE_AWAIT
 
-ENGAGE_METHOD   = 'engage'
+ENGAGE_METHOD = 'engage'
 SHUTDOWN_METHOD = 'shutdown'
 
 LOGGER = logging.getLogger(__name__)
+
 
 class Plugin(object):
     """Plugin module wrapper and execution logic
@@ -27,31 +28,31 @@ class Plugin(object):
     ]
 
     transitions = [
-            {
-                'trigger':'start',
-                'source':'ready',
-                'dest':'running',
-                'before': ['_on_start']
-                },
-            {
-                'trigger':'stop',
-                'source':'running',
-                'dest':'ready',
-                'before': ['_on_stop']
-                },
-            {
-                'trigger':'close',
-                'source': ['loaded', 'ready', 'running'],
-                'dest':'ready',
-                'before': ['_on_close']
-                }
+        {
+            'trigger': 'start',
+            'source': 'ready',
+            'dest': 'running',
+            'before': ['_on_start']
+        },
+        {
+            'trigger': 'stop',
+            'source': 'running',
+            'dest': 'ready',
+            'before': ['_on_stop']
+        },
+        {
+            'trigger': 'close',
+            'source': ['loaded', 'ready', 'running'],
+            'dest':'ready',
+            'before': ['_on_close']
+        }
     ]
 
     def __init__(self, loop, name, module, mtime, await_queue):
         self.machine = Machine(model=self,
-                            states=Plugin.states,
-                            transitions=Plugin.transitions,
-                            initial='ready')
+                               states=Plugin.states,
+                               transitions=Plugin.transitions,
+                               initial='ready')
         self.name = name
         self.module = module
         self.mtime = mtime
@@ -68,20 +69,23 @@ class Plugin(object):
 
         with suppress(asyncio.CancelledError):
             await getattr(self.module, ENGAGE_METHOD)(self.loop)
-                
+
     def _on_start(self, loop):
         """Create a new task for plugin"""
 
-        self.run_task = asyncio.ensure_future(self._wrap_coro(), loop=self.loop)
+        self.run_task = asyncio.ensure_future(
+            self._wrap_coro(), loop=self.loop)
         shutdown = getattr(self.module, SHUTDOWN_METHOD, None)
         callback = None
         if shutdown:
             def callback_func(future):
+                """Upon 'engage' coro  completion call cleanup code"""
                 shutdown()
             callback = callback_func
         else:
             def callback_func(future):
-                LOGGER.debug("Dummy callback() for plugin %s run_task" % self.name)
+                """Dummy completion call cleanup code"""
+                pass
             callback = callback_func
         self.run_task.add_done_callback(callback)
 
@@ -92,8 +96,6 @@ class Plugin(object):
         if self.run_task and not self.run_task.done():
             LOGGER.debug('Plugin "engage" still running, cancel()')
             self.run_task.cancel()
-        else:
-            LOGGER.debug("")
         self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.run_task))
         self.run_task = None
 
@@ -101,5 +103,5 @@ class Plugin(object):
         """Before 'close' event handler
         """
 
-        if self.state == 'running':
+        if self.is_running():
             self._on_stop()

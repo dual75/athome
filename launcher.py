@@ -13,9 +13,9 @@ import logging.handlers
 import os
 import signal
 import sys
-import yaml
-
 from functools import partial
+
+import yaml
 
 from athome.core import Core
 
@@ -29,10 +29,15 @@ LOOP = asyncio.get_event_loop()
 def init_env(config_file):
     """Initialize logging an sys.path"""
 
+    if not os.path.exists(config_file):
+        raise FileNotFoundError("Configuration file {} not found".format(config_file))
+
+    if os.path.isdir(config_file):
+        raise IsADirectoryError("{} is not a file".format(config_file))
+
     config = yaml.safe_load(open(config_file, 'rb'))
     logconf = config['logging']
     logging.config.dictConfig(logconf)
-    LOGGER.debug(sys.path)
     return config
 
 
@@ -75,7 +80,6 @@ def main():
     args = parser.parse_args()
     config = init_env(args.config)
     LOOP.set_debug(config['asyncio']['debug'])
-
     if args.detach:
         pid = os.fork()
         if pid == -1:
@@ -104,4 +108,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

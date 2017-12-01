@@ -7,7 +7,7 @@ import logging
 import multiprocessing
 
 from transitions import Machine
-from athome import Message, MESSAGE_AWAIT, MESSAGE_RESTART
+from athome import Message, MESSAGE_AWAIT
 
 LOGGER = logging.getLogger(__name__)
 

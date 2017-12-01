@@ -36,7 +36,7 @@ class Subsystem(SubsystemModule):
     def after_stop(self):
         self.core.emit('plugins_stopped')
 
-    async def run(self): 
+    async def run(self):
         """Subsystem activity method
 
         This method is a *coroutine*.
@@ -60,7 +60,7 @@ class Subsystem(SubsystemModule):
                                                             self._find_all,
                                                             plugins_dir
                                                         )
-                                                        )
+                                                       )
             all_file_names = {f[0] for f in all_files}
             memory_file_names = set(self.plugins.keys())
             for fname in memory_file_names - all_file_names:
@@ -74,20 +74,20 @@ class Subsystem(SubsystemModule):
                                                    mtime)
                 self._activate_plugin(plugin_)
 
-    def _activate_plugin(self, plugin):
+    def _activate_plugin(self, plugin_):
         """Add a plugin from current running set and start it
 
         :param plugin: plugin to be added
 
         """
 
-        self.plugins[plugin.name] = plugin
-        plugin.start(self.loop)
+        self.plugins[plugin_.name] = plugin_
+        plugin_.start(self.loop)
 
     def _deactivate_plugin(self, name):
-        """Remove a plugin from current 
+        """Remove a plugin from current
 
-        :param name: name of the plugin to be removed 
+        :param name: name of the plugin to be removed
 
         """
 
@@ -96,14 +96,15 @@ class Subsystem(SubsystemModule):
         plugin_.stop()
         del self.plugins[name]
 
-    def _find_all(self, plugins_dir):
+    @staticmethod
+    def _find_all(plugins_dir):
         """Find all python modules in plugins dir"""
 
         result = [(f, os.path.join(plugins_dir, f))
                   for f in os.listdir(plugins_dir)
                   if f.endswith('.py')
                   and os.path.isfile(os.path.join(plugins_dir, f))
-                  ]
+                 ]
         return result
 
     def _find_changed(self, files):

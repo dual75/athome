@@ -9,8 +9,9 @@ import logging
 from concurrent.futures import CancelledError
 
 from athome import Message, MESSAGE_AWAIT, MESSAGE_EVT, \
-    MESSAGE_START, MESSAGE_STOP, MESSAGE_RESTART, MESSAGE_SHUTDOWN
+    MESSAGE_START, MESSAGE_STOP, MESSAGE_SHUTDOWN
 from athome.module import SystemModule
+from athome.lib import locator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +34,8 @@ class Core(SystemModule):
             self.loop = None
             self.events = []
             self.event_task = None
+            self.locator = locator.Cache()
+            self.locator.register('core', self)
             self.__initialized = True
 
     def on_initialize(self):
@@ -51,6 +54,7 @@ class Core(SystemModule):
                     self.loop, 
                     self.config['subsystem'][name]['config']
                 )
+                self.locator.register('subsystem/{}'.format(name), subsystem)
             except:
                 LOGGER.exception('Error in initialization')
 

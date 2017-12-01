@@ -224,8 +224,11 @@ class Subsystem(SubsystemModule):
     def on_initialize(self):
         """Perform subsystem initialization"""
 
+        self.republishers = []
         self.broker_infos = []
-        for broker in self.config['brokers'].values():
+        for broker in [b for b in self.config['brokers'].values() 
+                       if b['enable']
+                      ]:
             url = self._compose_url(broker)
             self.broker_infos.append({
                 'url': url,
@@ -241,13 +244,7 @@ class Subsystem(SubsystemModule):
         if 'port' in broker:
             result.append(":%d" % broker['port'])
         result = "".join(result)
-        LOGGER.debug('Composed url %s', result)
         return result
-
-    def on_start(self):
-        """Initialize or reinitialize subsystem state"""
-
-        self.republishers = []
 
     async def run(self):
         """Perform bridging activity"""
@@ -282,7 +279,7 @@ class Subsystem(SubsystemModule):
         """Forward a message on all republishers but original one"""
 
         for republisher in self.republishers:
-            LOGGER.debug('to %s', republisher.url)
+            LOGGER.debug('forward to %s', republisher.url)
             await republisher.forward(message)
 
     def on_fail(self):

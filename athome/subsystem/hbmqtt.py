@@ -23,8 +23,6 @@ class Subsystem(SubsystemModule):
 
         self.broker = Broker(self.config)
         self.core.emit('hbmqtt_starting')
-
-    def after_start(self):
         async def wait_broker():
             await asyncio.sleep(5)
             self.core.emit('hbmqtt_started')

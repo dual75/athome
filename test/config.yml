@@ -1,6 +1,6 @@
 subsystem:
     hbmqtt:
-        enable: false
+        enable: true
         process: true
         config:
             listeners:
@@ -19,27 +19,24 @@ subsystem:
         process: false
         config:
             brokers:
-                local:
+                local1:
+                    enable: true
+                    protocol: 'mqtt'
+                    host: 'localhost'
+                    topics: [
+                        ['test', 1]
+                    ]
+                local2:
                     enable: true
                     protocol: 'mqtt'
                     host: 'localhost'
                     topics: [
                         ['another', 1]
                     ]
-                single:
-                    enable: false
-                    protocol: 'mqtt'
-                    host: 'm23.cloudmqtt.com'
-                    port: 11702
-                    username: 'oleffxza'
-                    password: '8ViMtnkje343'
-                    topics: [
-                        ['light/1', 0], 
-                    ['another', 0]
                 ]
 
     plugins:
-        enable: false
+        enable: true
         process: true
         config:
             plugins_dir: 'plugindir'
@@ -62,7 +59,7 @@ logging:
 
     root:
         level: 'INFO'
-        handlers: ['syslog_handler', 'console_handler']
+        handlers: ['console_handler']
         formatter: 'standard'
         
     formatters:
@@ -76,26 +73,21 @@ logging:
             formatter: 'standard'
             stream: 'ext://sys.stdout'
 
-        syslog_handler:
-            class: 'logging.handlers.SysLogHandler'
-            level: 'INFO'
-            formatter: 'standard'
-
     loggers: 
         asyncio:
             level: 'INFO'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: ['console_handler']
         transitions:
             level: 'WARNING'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: 'console_handler']
         athome.subsystem.mqttbridge:
             level: 'DEBUG'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: ['console_handler']
         athome.subsystem.plugins:
             level: 'DEBUG'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: ['console_handler']
         hbmqtt: 
             level: 'DEBUG'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: ['console_handler']
 
 

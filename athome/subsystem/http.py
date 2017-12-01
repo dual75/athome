@@ -13,16 +13,21 @@ from athome.submodule import SubsystemModule
 from athome.api import mqtt
 from athome.core import Core
 
+
+from athome.lib.locator import Cache()
+
 LOGGER = logging.getLogger(__name__)
 
 
-def http_failure(msg):
+
+
+async def http_failure(msg):
     response_data = {'status': 'failure', "message": msg}
     body = json.dumps(response_data).encode('utf-8')
     return aiohttp.web.Response(body=body, content_type="application/json")
 
 
-async def decode(request):
+def decode(request):
     try:
         result = await request.json()
         return result
@@ -39,7 +44,11 @@ async def core_handler(request):
     elif command == 'restart':
         core.restart()
 
-    response_data = {'status': 'ok'}
+    locator = Cache()
+    core = locator.lookup('core')
+    managed_core = athome.lib.management.Managed(core)
+
+    response_data = core.json()
     body = json.dumps(response_data).encode('utf-8')
     return aiohttp.web.Response(body=body, content_type="application/json")
 
@@ -87,7 +96,7 @@ class Subsystem(SubsystemModule):
 
         self.core.emit('http_starting')
         self.app = aiohttp.web.Application(loop=self.core.loop)
-        self.app.router.add_route('POST', '/core', core_handler)
+        self.app.router.add_route('GET', '/core', core_handler)
         self.app.router.add_route('POST', '/publish', publish_handler)
         self.app.router.add_route('POST', '/subsystem', subsystem_handler)
 
