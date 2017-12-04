@@ -61,7 +61,7 @@ logging:
     disable_existing_loggers: true
 
     root:
-        level: 'INFO'
+        level: 'DEBUG'
         handlers: ['syslog_handler', 'console_handler']
         formatter: 'standard'
         
