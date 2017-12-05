@@ -2,32 +2,24 @@
 #
 # See the file LICENCE for copying permission.
 
+
 import logging
 
 import json
 
-from aiohttp import web
 import aiohttp
+from aiohttp import web
 
 from athome.submodule import SubsystemModule
-from athome.api import mqtt
 from athome.core import Core
-
-
-from athome.lib.locator import Cache()
+from athome.lib.management import managed, ManagedObject
+from athome.lib.locator import Cache, NameError
 
 LOGGER = logging.getLogger(__name__)
 
+CT_JSON = 'application/json'
 
-
-
-async def http_failure(msg):
-    response_data = {'status': 'failure', "message": msg}
-    body = json.dumps(response_data).encode('utf-8')
-    return aiohttp.web.Response(body=body, content_type="application/json")
-
-
-def decode(request):
+async def decode(request):
     try:
         result = await request.json()
         return result
@@ -35,53 +27,82 @@ def decode(request):
         return http_failure("data not properly formated")
 
 
-async def core_handler(request):
-    json_request = await decode(request)
-    core = Core()
-    command = json_request['command']
-    if command == 'stop':
-        core.stop()
-    elif command == 'restart':
-        core.restart()
-
-    locator = Cache()
-    core = locator.lookup('core')
-    managed_core = athome.lib.management.Managed(core)
-
-    response_data = core.json()
-    body = json.dumps(response_data).encode('utf-8')
-    return aiohttp.web.Response(body=body, content_type="application/json")
+def prepare_outcome():
+    result = dict()
+    result['outcome'] = 0
+    result['status'] = 'ok'
+    result['data'] = None
+    return result
 
 
-async def subsystem_handler(request):
-    json_request = await decode(request)
-    core = Core()
-    name = json_request['name']
-    command = json_request['command']
-    if command == 'start':
-        core.subsystems[name].start(core.loop)
-    elif command == 'stop':
-        core.subsystems[name].stop()
-    elif command == 'restart':
-        core.subsystems[name].restart()
-
-    response_data = {'status': 'ok'}
-    body = json.dumps(response_data).encode('utf-8')
-    return aiohttp.web.Response(body=body, content_type="application/json")
+def error_outcome(response, msg, code=-1):
+    response['outcome'] = code
+    response['status'] = msg
 
 
-async def publish_handler(request):
-    json_request = await decode(request)
-    client = await mqtt.local_client()
-    await client.publish(
-        json_request['topic'],
-        json_request['message'].encode('utf-8'),
-        'qos' in json_request and json_request['qos'] or 0
-    )
-    client.disconnect()
-    response_data = {'status': 'ok'}
-    body = json.dumps(response_data).encode('utf-8')
-    return aiohttp.web.Response(body=body, content_type="application/json")
+def find_managed_subsystem(request):
+    cache = Cache()
+    name = request.match_info['name']
+    subsystem_path = 'subsystem/{}'.format(name)
+    managed_path = 'managed/{}'.format(subsystem_path)
+    try:
+        managed = cache.lookup(managed_path)
+    except NameError as ex:
+        subsystem = cache.lookup(subsystem_path)
+        managed = ManagedObject(subsystem)
+        cache.register(managed_path, managed)
+    return managed
+
+
+async def get_subsystem_handler(request):
+    managed = find_managed_subsystem(request)
+    return aiohttp.web.Response(body=managed.json(), content_type=CT_JSON)
+
+
+async def post_subsystem_handler(request):
+    managed = find_managed_subsystem(request)
+    method = request.match_info['method']
+    args = await decode(request)
+    result = prepare_outcome()
+    try:
+        call_result = managed.invoke(method, args)
+        result['data'] = call_result
+    except Exception as ex:
+        error_outcome(result, repr(ex))
+    result = json.dumps(result)
+    return aiohttp.web.Response(body=result, content_type=CT_JSON)
+
+
+def find_managed_core():
+    core_path = 'core'
+    managed_path = 'managed/{}'.format(core_path)
+    cache = Cache()
+    try:
+        managed = cache.lookup(managed_path)
+    except NameError as ex:
+        core = Core()
+        managed = ManagedObject(core)
+        cache.register(managed_path, managed)
+    return managed
+
+
+async def get_core_handler(request):
+    managed = find_managed_core()
+    return aiohttp.web.Response(body=managed.json(), content_type=CT_JSON)
+
+
+async def post_core_handler(request):
+    managed = find_managed_core()
+    result = prepare_outcome()
+    try:
+        args = await decode(request)
+        method = request.match_info['method']
+        call_result = managed.invoke(method, args)
+        result['data'] = call_result
+    except Exception as ex:
+        error_outcome(result, repr(ex))
+    result = json.dumps(result)
+    return aiohttp.web.Response(body=result, content_type=CT_JSON)
 
 
 class Subsystem(SubsystemModule):
@@ -96,9 +117,10 @@ class Subsystem(SubsystemModule):
 
         self.core.emit('http_starting')
         self.app = aiohttp.web.Application(loop=self.core.loop)
-        self.app.router.add_route('GET', '/core', core_handler)
-        self.app.router.add_route('POST', '/publish', publish_handler)
-        self.app.router.add_route('POST', '/subsystem', subsystem_handler)
+        self.app.router.add_route('GET', '/core', get_core_handler)
+        self.app.router.add_route('POST', '/core/{method}', post_core_handler)
+        self.app.router.add_route('GET', '/subsystem/{name}', get_subsystem_handler)
+        self.app.router.add_route('POST', '/subsystem/{name}/{method}', post_subsystem_handler)
 
     async def run(self):
         """Start broker"""
@@ -119,3 +141,10 @@ class Subsystem(SubsystemModule):
             self.core.emit('http_stopped')
         self.core.faf(stop_server())
 
+    @managed
+    def greet(self, value):
+        return 'ciao {}'.format(value)
+
+    @property
+    def status(self):
+        return self.state

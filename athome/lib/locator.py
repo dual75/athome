@@ -45,10 +45,6 @@ class Cache:
 
 
     def _lookup(self, node, chunks, original_path):
-        if LOGGER.isDebugEneabled():
-            LOGGER.debug(node)
-            LOGGER.debug(chunks)
-            LOGGER.debug(original_path)
         first, remaining = chunks[0], chunks[1:]
         current_node = node.get(first)
         if not remaining:
@@ -76,32 +72,22 @@ class Cache:
 
 
     def register(self, path, obj):
-        chunks = self._chop(path)
-        self._append(self.root, chunks, obj)
+        original_path, chunks,  = self._chop(path)
+        self._append(self.root, chunks, obj, original_path)
 
 
-    def _append(self, node, chunks, obj):
+    def _append(self, node, chunks, obj, original_path):
         LOGGER.debug('_append %s, %s, %s', node, chunks, obj)
         first, remaining = chunks[0], chunks[1:]
         if remaining:
             if first not in node:
                 node[first] = dict()
             elif not isinstance(node[first], dict):
-                raise Exception('node already exists {}'.format(first))
-            self._append(node[first], remaining, obj)
+                raise Exception('node already exists {}'.format(original_path))
+            self._append(node[first], remaining, obj, original_path)
         else:
             if first not in node:
                 LOGGER.debug('append %s', first)
                 node[first] = obj
             else:
-                raise Exception('node already exists {}'.format(first))
-
-
-
-if __name__ == '__main__':
-    global LOGGER
-    logging.basicConfig(level=logging.DEBUG)
-    LOGGER = logging.getLogger(__name__)
-    C = Cache()
-    C.register('as/asd', 1)
-
+                raise Exception('node already exists {}'.format(original_path))

@@ -185,4 +185,8 @@ class SystemModule():
 
         pass
 
+    @property
+    def status(self):
+        return self.state
+
 

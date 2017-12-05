@@ -12,6 +12,7 @@ from hbmqtt.client import ClientException, ConnectException, MQTTClient
 
 from athome.core import Core
 from athome.submodule import SubsystemModule
+from athome.lib.management import ManagedObject
 from athome import Message, MESSAGE_AWAIT
 
 LOGGER = logging.getLogger(__name__)

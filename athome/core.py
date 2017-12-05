@@ -11,7 +11,6 @@ from concurrent.futures import CancelledError
 from athome import Message, MESSAGE_AWAIT, MESSAGE_EVT, \
     MESSAGE_START, MESSAGE_STOP, MESSAGE_SHUTDOWN
 from athome.module import SystemModule
-from athome.lib import locator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,16 +29,14 @@ class Core(SystemModule):
     def __init__(self):
         if not self.__initialized:
             super().__init__('core', asyncio.Queue())
-            self.subsystems = {}
+            self._subsystems = {}
             self.loop = None
             self.events = []
             self.event_task = None
-            self.locator = locator.Cache()
-            self.locator.register('core', self)
             self.__initialized = True
 
     def on_initialize(self):
-        # Load subsystems
+        # Load _subsystems
         for name in [name for name in self.config['subsystem']
                      if self.config['subsystem'][name]['enable']
                      ]:
@@ -49,7 +46,7 @@ class Core(SystemModule):
                 module = importlib.import_module(module_name)
                 subsystem_class = getattr(module, 'Subsystem')
                 subsystem = subsystem_class(name, self.await_queue)
-                self.subsystems[name] = subsystem
+                self._subsystems[name] = subsystem
                 subsystem.initialize(
                     self.loop, 
                     self.config['subsystem'][name]['config']
@@ -87,7 +84,7 @@ class Core(SystemModule):
             LOGGER.info('await ... done')
 
     async def _propagate_event(self, evt):
-        for subsystem in self.subsystems.values():
+        for subsystem in self._subsystems.values():
             await subsystem.event_queue.put(evt)
 
     def after_start(self):
@@ -97,7 +94,7 @@ class Core(SystemModule):
         self.emit('athome_stopping')
         async def put_stop():
             secs = 5
-            LOGGER.info("wating %d secs for subsystems to shutdown", secs)
+            LOGGER.info("wating %d secs for _subsystems to shutdown", secs)
             await asyncio.sleep(secs, loop=self.loop)
             self.emit('athome_stopped')
         self.faf(put_stop())   
@@ -106,7 +103,7 @@ class Core(SystemModule):
         self.emit('athome_shutdown')
         async def put_shutdown():
             secs = 5
-            LOGGER.info("wating %d secs for subsystems to shutdown", secs)
+            LOGGER.info("wating %d secs for _subsystems to shutdown", secs)
             await asyncio.sleep(secs, loop=self.loop)
             await self.await_queue.put(Message(MESSAGE_SHUTDOWN, None))
         self.faf(put_shutdown())
@@ -114,11 +111,11 @@ class Core(SystemModule):
     def on_fail(self):
         """Failure event handler
 
-        Forcibly cancels all running tasks for subsystems and invoke
+        Forcibly cancels all running tasks for _subsystems and invoke
         fail() method bypassing the event mechanism.
 
         """
-        for subsystem in self.subsystems.values():
+        for subsystem in self._subsystems.values():
             run_task = subsystem.run_task
             if run_task:
                 if not run_task.done():
@@ -128,7 +125,7 @@ class Core(SystemModule):
         self.await_queue.put(Message(MESSAGE_STOP, None))
 
     def emit(self, evt):
-        """Propagate event 'evt' to subsystems"""
+        """Propagate event 'evt' to _subsystems"""
         self.await_queue.put_nowait(Message(MESSAGE_EVT, evt))
 
     def fire_and_forget(self, coro):
@@ -139,4 +136,9 @@ class Core(SystemModule):
 
     # shortcut for function
     faf = fire_and_forget
+
+    @property
+    def subsystems(self):
+        return list(self._subsystems.keys())
+
 

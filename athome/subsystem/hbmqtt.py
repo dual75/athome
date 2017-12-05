@@ -8,6 +8,7 @@ import logging
 from hbmqtt.broker import Broker
 
 from athome.submodule import SubsystemModule
+from athome.lib.management import ManagedObject
 
 LOGGER = logging.getLogger(__name__)
 

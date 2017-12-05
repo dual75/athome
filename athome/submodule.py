@@ -47,3 +47,4 @@ class SubsystemModule(SystemModule):
         self.event_task.cancel()
         self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.event_task))
 
+

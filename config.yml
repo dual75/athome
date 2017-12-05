@@ -1,6 +1,6 @@
 subsystem:
     hbmqtt:
-        enable: false
+        enable: true
         process: true
         config:
             listeners:
@@ -39,7 +39,7 @@ subsystem:
                 ]
 
     plugins:
-        enable: false
+        enable: true
         process: true
         config:
             plugins_dir: 'plugindir'
@@ -62,7 +62,7 @@ logging:
 
     root:
         level: 'DEBUG'
-        handlers: ['syslog_handler', 'console_handler']
+        handlers: ['console_handler']
         formatter: 'standard'
         
     formatters:
@@ -84,18 +84,18 @@ logging:
     loggers: 
         asyncio:
             level: 'INFO'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: [ 'console_handler']
         transitions:
             level: 'WARNING'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: ['console_handler']
         athome.subsystem.mqttbridge:
             level: 'DEBUG'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: ['console_handler']
         athome.subsystem.plugins:
             level: 'DEBUG'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: ['console_handler']
         hbmqtt: 
             level: 'DEBUG'
-            handlers: ['syslog_handler', 'console_handler']
+            handlers: ['console_handler']
 
 
