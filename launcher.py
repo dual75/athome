@@ -22,8 +22,12 @@ from athome.core import Core
 DEFAULT_CONFIG = './config.yml'
 LOGGER = logging.getLogger(__name__)
 
-CORE = Core()
+
+if sys.platform == 'win32':
+    loop = asyncio.ProactorEventLoop()
+    asyncio.set_event_loop(loop)
 LOOP = asyncio.get_event_loop()
+CORE = Core()
 
 
 def init_env(config_file):
@@ -60,7 +64,7 @@ def install_signal_handlers(args):
     """
 
     signames = ('SIGINT', 'SIGTERM')
-    if os.name != 'nt':
+    if sys.platform != 'win32':
         for signame in signames:
             LOOP.add_signal_handler(getattr(signal, signame),
                                     partial(ask_exit, signame))
@@ -105,6 +109,6 @@ def main():
         result = -1
     sys.exit(result)
 
-
+    
 if __name__ == '__main__':
     main()

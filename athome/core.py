@@ -37,8 +37,9 @@ class Core(SystemModule):
 
     def on_initialize(self):
         # Load _subsystems
-        for name in [name for name in self.config['subsystem']
-                     if self.config['subsystem'][name]['enable']
+        subsystems = self.config['subsystem']
+        for name in [name for name in subsystems
+                     if subsystems[name]['enable']
                      ]:
             LOGGER.debug('Loading module %s', name)
             module_name = 'athome.subsystem.{}'.format(name)
@@ -51,7 +52,6 @@ class Core(SystemModule):
                     self.loop, 
                     self.config['subsystem'][name]['config']
                 )
-                self.locator.register('subsystem/{}'.format(name), subsystem)
             except:
                 LOGGER.exception('Error in initialization')
 
