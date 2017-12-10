@@ -1,7 +1,6 @@
 subsystem:
     hbmqtt:
         enable: false
-        process: true
         config:
             listeners:
                 default:
@@ -16,7 +15,6 @@ subsystem:
 
     mqttbridge:
         enable: false
-        process: false
         config:
             brokers:
                 local:
@@ -40,10 +38,9 @@ subsystem:
 
     plugins:
         enable: true
-        process: true
         config:
             plugins_dir: 'plugindir'
-            plugin_poll_interval: 20
+            plugin_poll_interval: 5
 
     http:
         enable: false

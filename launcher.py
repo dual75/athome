@@ -35,10 +35,8 @@ def init_env(config_file):
 
     if not os.path.exists(config_file):
         raise FileNotFoundError("Configuration file {} not found".format(config_file))
-
     if os.path.isdir(config_file):
         raise IsADirectoryError("{} is not a file".format(config_file))
-
     config = yaml.safe_load(open(config_file, 'rb'))
     logconf = config['logging']
     logging.config.dictConfig(logconf)

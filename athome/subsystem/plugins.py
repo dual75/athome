@@ -4,11 +4,16 @@
 
 import sys
 import asyncio
+import logging
+import signal
 from asyncio import subprocess
 import functools
 
-from athome.lib import atprotocol, pluginrunner
+from athome.lib import pluginrunner
 from athome.submodule import SubsystemModule
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Subsystem(SubsystemModule):
@@ -16,17 +21,13 @@ class Subsystem(SubsystemModule):
 
     def __init__(self, name, await_queue):
         super().__init__(name, await_queue)
-        self.plugins = {}
+        print('plugins!!')
         self.proc = None
 
     def on_stop(self):
         """On 'stop' event callback method"""
 
-        for name in list(self.plugins.keys()):
-            self.proc.communicate(pluginrunner.CODE_DEACTIVATE, name)
-        self.plugins = None
-        self.proc.terminate()
-        self.proc = None
+        self.proc.communicate('stop')
 
     def after_stop(self):
         self.core.emit('plugins_stopped')
@@ -37,19 +38,53 @@ class Subsystem(SubsystemModule):
         This method is a *coroutine*.
         """
 
-        #poll_interval = self.config['plugin_poll_interval']
-        # self.core.emit('plugins_started')
-        # with suppress(asyncio.CancelledError):
+        print('diocaneeeee-')
         self.proc = await asyncio.create_subprocess_exec(
-            sys.executable, '-m', 'athome.lib.pluginrunner', self.config['plugindir'],
+            sys.executable, '-m', 'athome.lib.pluginrunner', self.config['plugindir'], "5", 
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             loop=self.loop)
-        self.communicate(pluginrunner.CODE_ACTIVATE, 'ciao')
+        self.communicate('start')
+        data = 'start'
+        while data != 'exit\n':
+            data = await self.proc.stdout.readline()
         await self.proc.wait()
+        self.proc = None
 
-    def communicate(self, code, payload):
-        data = atprotocol.pack(code, payload)
-        self.proc.communicate(data)
+    def communicate(self, payload):
+        self.proc.communicate(payload.encode('utf-8') + b'\n')
+
+
+def stop(s):
+    LOGGER.info('send stop')
+    sub.communicate('stop')
+
+
+def install_signal_handlers(loop, sub):
+    """Install signal handlers for SIGINT and SIGTERM
+
+    Parameters:
+    param:
+    """
+
+    signames = ('SIGINT', 'SIGTERM')
+    if sys.platform != 'win32':
+        for signame in signames:
+            loop.add_signal_handler(getattr(signal, signame),
+                                    functools.partial(stop, sub))
+
+def main():
+    loop = asyncio.get_event_loop()
+    queue = asyncio.Queue()
+    s = Subsystem('plugins', queue)
+    s.initialize(loop, {'plugindir':'plugindir'})
+    install_signal_handlers(loop, s)
+    run_task = asyncio.ensure_future(s.run())
+    loop.run_until_complete(run_task)
+    loop.close()
+
+
+if __name__ == '__main__':
+    main()
 
 
