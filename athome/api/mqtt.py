@@ -22,8 +22,6 @@ async def local_client():
 
     """
 
-    config = athome.core.Core().config
-    url = config['subsystem']['hbmqtt']['config']['listeners']['local']['bind']
     result = MQTTClient(config=LOCAL_CLIENT_CONFIG)
-    await result.connect('mqtt://%s' % url, cleansession=True)
+    await result.connect('mqtt://localhost:1833', cleansession=True)
     return result

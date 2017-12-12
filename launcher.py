@@ -34,7 +34,8 @@ def init_env(config_file):
     """Initialize logging an sys.path"""
 
     if not os.path.exists(config_file):
-        raise FileNotFoundError("Configuration file {} not found".format(config_file))
+        raise FileNotFoundError("Configuration file {} not found".
+                                    format(config_file))
     if os.path.isdir(config_file):
         raise IsADirectoryError("{} is not a file".format(config_file))
     config = yaml.safe_load(open(config_file, 'rb'))
@@ -51,7 +52,7 @@ def ask_exit(signame):
     """
 
     LOGGER.info("got signal %s exit" % signame)
-    CORE.shutdown()
+    CORE.stop()
 
 
 def install_signal_handlers(args):
@@ -78,7 +79,6 @@ def main():
                         default=DEFAULT_CONFIG)
     parser.add_argument('-v', '--verbosity',
                         action='store_true', help='Turn on verbosity')
-
     args = parser.parse_args()
     config = init_env(args.config)
     LOOP.set_debug(config['asyncio']['debug'])
@@ -105,8 +105,13 @@ def main():
     except Exception as ex:
         LOGGER.exception(ex)
         result = -1
+    finally:
+        tasks = asyncio.Task.all_tasks(LOOP)
+        if tasks:
+            LOOP.run_until_complete(asyncio.gather(*tasks, loop=LOOP))
     sys.exit(result)
 
     
 if __name__ == '__main__':
     main()
+

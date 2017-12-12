@@ -58,13 +58,14 @@ class Runner:
         self.run_task = None
         
     def pipe_in(self, line):
+        LOGGER.info('protocol yieled line: %s', line)
         self.events.put_nowait(Message(MESSAGE_EVT, line[:-1]))
         self.pipe_out(line)
 
     def pipe_out(self, str_):
-        self.pipe_stream.write(str_.encode('utf-8') + b'\n')
+        self.pipe_stream.write((str_ + '\n').encode('utf-8'))
 
-    async def reader(self):
+    async def run(self):
         loop = asyncio.get_event_loop()
         _, protocol = await loop.connect_read_pipe(
             lambda: LineProtocol(self.pipe_in), 
@@ -74,40 +75,38 @@ class Runner:
             asyncio.BaseProtocol,
             sys.stdout
         )
-        loop = asyncio.get_event_loop()
-        msg = Message(MESSAGE_NONE, None)
-        running = True
-        while running:
-            msg = await self.events.get()
-            LOGGER.debug('got msg %s: %s', msg.type, msg.value)
 
-            if msg.type == MESSAGE_START:
-                self.run_task = asyncio.ensure_future(self._run())
-            elif msg.type == MESSAGE_STOP:
-                self.run_task.cancel()
-                try:
-                    await self.run_task
-                finally:
-                    self.run_task = None
-            elif msg.type == MESSAGE_EVT:
+        self.running = True
+        await asyncio.gather(
+                asyncio.ensure_future(self._scan_loop()),
+                asyncio.ensure_future(self._event_loop())
+                )
+        
+    async def _event_loop(self):
+        while self.running or not self.events.empty():
+            msg = await self.events.get()
+            LOGGER.info('Runner got msg %s: %s', msg.type, msg.value)
+            
+            if msg.type == MESSAGE_EVT:
                 LOGGER.debug('got event %s', msg.value)
-                if evt.value == 'stop':
+                if msg.value == 'stop':
                     self.pipe_out('exit')
-                    running = False
+                    self.running = False
             elif msg.type == MESSAGE_AWAIT:
                 task = msg.value
                 if not task.done():
                     task.cancel()
                 try:
                     await task
+                except asyncio.CancelledError as ex:
+                    LOGGER.debug('Cancelled task %s', task)
                 finally:
                     LOGGER.debug('awaited %s', task)
 
-    async def _run(self):
-        with suppress(asyncio.CancelledError):
-            while True:
-                await self._directory_scan()
-                await asyncio.sleep(self.check_interval)
+    async def _scan_loop(self):
+        while self.running:
+            await self._directory_scan()
+            await asyncio.sleep(self.check_interval)
 
     def fire_and_forget(self, coro):
         """Create task from coro or awaitable and put it into await_queue"""
@@ -238,14 +237,15 @@ class Runner:
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
+    os.setpgid(os.getpid(), os.getpid())
+
     loop = asyncio.get_event_loop()
     loop.set_debug(True)
     runner = Runner(sys.argv[1], int(sys.argv[2]))
-    task = asyncio.ensure_future(runner.reader())
-    runner.events.put_nowait(Message(MESSAGE_START, None))
+    task = asyncio.ensure_future(runner.run())
     loop.run_until_complete(task)
-    loop.stop()
     loop.close()
+    sys.exit(0)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
-# Copyright (c) 2017 Alessandro Duca
-#
-# See the file LICENCE for copying permission.
+    # Copyright (c) 2017 Alessandro Duca
+    #
+    # See the file LICENCE for copying permission.
 
 import asyncio
 import logging
@@ -17,8 +17,11 @@ class SystemModule():
 
     states = [
                 'loaded',
+                'initializing',
                 'ready',
+                'starting',
                 'running',
+                'stopping',
                 'closed',
                 'failed'
               ]
@@ -27,40 +30,61 @@ class SystemModule():
             {
                 'trigger':'initialize',
                 'source':'loaded',
-                'dest':'ready',
+                'dest':'initializing',
                 'before': ['_on_initialize'],
                 'after': ['_after_initialize']
                 },
             {
+                'trigger':'initialized',
+                'source':'initializing',
+                'dest':'ready'
+                },
+            {
                 'trigger':'start',
                 'source':'ready',
+                'dest':'starting',
+                'before': ['_on_start']
+                },
+            {
+                'trigger':'started',
+                'source':'starting',
                 'dest':'running',
-                'before': ['_on_start'],
-                'after': ['_after_start']
+                'after': ['_after_started'],
                 },
             {
                 'trigger':'stop',
                 'source':'running',
-                'dest':'ready',
+                'dest':'stopping',
                 'before': ['_on_stop'],
-                'after': ['_after_stop']
+                },
+            {
+                'trigger':'stopped',
+                'source':'stopping',
+                'dest':'ready',
+                'after': ['_after_stopped']
                 },
             {
                 'trigger':'shutdown',
                 'source':['loaded', 'ready', 'running'],
                 'dest':'closed',
-                'before': ['_on_shutdown'],
-                'after': ['_after_shutdown']
+                'before': ['_on_shutdown']
                 },
             {
                 'trigger':'fail',
-                'source':['loaded', 'ready', 'running'],
+                'source':[
+                    'loaded', 
+                    'initializing', 
+                    'ready', 
+                    'starting',
+                    'running',
+                    'stopping'
+                ],
                 'dest':'failed',
                 'before': ['_on_fail']
                 }
         ]
 
-    def __init__(self, name, await_queue=None):
+    def __init__(self, name, event_queue=None):
         self.name = name
         self.machine = Machine(model=self,
                             states=SystemModule.states,
@@ -69,11 +93,7 @@ class SystemModule():
         self.loop = None
         self.config = None
         self.run_task = None
-        self.await_queue = await_queue
-
-    #async def on_event(self, evt):
-    #    pass
-
+        self.event_queue = event_queue
 
     def _on_initialize(self, loop, config):
         """Before 'initialize' callback"""
@@ -89,14 +109,7 @@ class SystemModule():
         pass
 
     def _after_initialize(self, loop, config):
-        """After 'initialize' callback"""
-
-        self.after_initialize()
-
-    def after_initialize(self):
-        """after_initialize placeholder"""
-
-        pass
+        self.initialized()
 
     async def run(self):
         """Placeholder for run coroutine"""
@@ -114,12 +127,12 @@ class SystemModule():
 
         pass
 
-    def _after_start(self):
+    def _after_started(self):
         """After 'start' callback"""
 
-        self.after_start()
+        self.after_started()
 
-    def after_start(self):
+    def after_started(self):
         """after_start placeholder"""
 
         pass
@@ -128,32 +141,31 @@ class SystemModule():
         """Before 'stop' callback"""
 
         self.on_stop()
-        if not self.run_task.done():
-            self.run_task.cancel()
-        self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.run_task))
-        self.run_task = None
+        #if not self.run_task.done():
+        #    self.run_task.cancel()
+        #self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.run_task))
+        #self.run_task = None
 
     def on_stop(self):
         """Perform module stop activities, mandatory"""
 
         raise NotImplementedError
 
-    def _after_stop(self):
+    def _after_stopped(self):
         """After 'stop' callback"""
 
-        self.after_stop()
+        self.after_stopped()
 
-    def after_stop(self):
-        """after_start placeholder"""
+    def after_stopped(self):
+        """Perform module stop activities, mandatory"""
 
-        pass
+        raise NotImplementedError
 
     def _on_shutdown(self):
         """Before 'shutdown' callback"""        
 
+        LOGGER.debug('shutting down %s', __name__)
         try:
-            if self.is_running():
-                self._on_stop()
             self.on_shutdown()
         except Exception as ex:
             LOGGER.exception("Subsystem %s shutdown in error: %s", 
@@ -161,16 +173,6 @@ class SystemModule():
 
     def on_shutdown(self):
         """on_shutdown placeholder"""
-
-        pass
-
-    def _after_shutdown(self):
-        """After 'shutdown' callback"""
-
-        self.after_shutdown()
-
-    def after_shutdown(self):
-        """after_shutdown placeholder"""
 
         pass
 

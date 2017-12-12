@@ -42,9 +42,3 @@ class SubsystemModule(SystemModule):
             elif evt == 'athome_shutdown':
                 self.shutdown()
     
-    def on_shutdown(self):
-        LOGGER.debug('canceling input_task for subsystem %s', self.name)
-        self.event_task.cancel()
-        self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.event_task))
-
-
