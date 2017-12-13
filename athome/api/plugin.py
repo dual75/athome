@@ -8,7 +8,7 @@ from contextlib import suppress
 
 from transitions import Machine
 
-from athome.core import Message, MESSAGE_AWAIT
+from athome.core import Message
 
 ENGAGE_METHOD = 'engage'
 SHUTDOWN_METHOD = 'shutdown'
@@ -96,7 +96,7 @@ class Plugin(object):
         if self.run_task and not self.run_task.done():
             LOGGER.debug('Plugin "engage" still running, cancel()')
             self.run_task.cancel()
-        self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.run_task))
+        self.await_queue.put_nowait(self.run_task)
         self.run_task = None
 
     def _on_close(self):

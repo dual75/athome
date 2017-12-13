@@ -11,7 +11,6 @@ import signal
 from asyncio import subprocess
 import functools
 
-from athome import Message, MESSAGE_AWAIT, MESSAGE_EVT
 from athome.lib import pluginrunner
 from athome.submodule import SubsystemModule
 
@@ -45,6 +44,7 @@ class Subsystem(SubsystemModule):
                 stdout=subprocess.PIPE,
                 loop=self.loop)
             
+            self.started()
             running = True
             while running:
                 data = await self.proc.stdout.readline()
@@ -56,13 +56,12 @@ class Subsystem(SubsystemModule):
                 LOGGER.info('plugins subsystem got line: %s', data)
                 if data == 'exit':
                     running = False
-                
             await self.proc.wait()
         self.proc = None
         self.stopped()
 
     def after_stopped(self):
-        self.core.emit('plugins_stopped'))
+        self.core.emit('plugins_stopped')
 
     async def sendLine(self, payload):
         await self.proc.communicate((payload + '\n').encode('utf-8'))
@@ -91,7 +90,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
     loop = asyncio.get_event_loop()
     queue = asyncio.Queue()
-    s = Subsystem('plugins', queue)
+    s = Subsystem('plugins')
     s.initialize(loop, {'plugins_dir':'tmp'})
     install_signal_handlers(loop, s)
     s.start()

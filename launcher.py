@@ -103,10 +103,7 @@ def main():
     except Exception as ex:
         LOGGER.exception(ex)
         result = -1
-    finally:
-        tasks = asyncio.Task.all_tasks(LOOP)
-        if tasks:
-            LOOP.run_until_complete(asyncio.gather(*tasks, loop=LOOP))
+
     sys.exit(result)
 
     

@@ -16,8 +16,7 @@ from athome import Message,\
     MESSAGE_START,\
     MESSAGE_STOP,\
     MESSAGE_EVT,\
-    MESSAGE_NONE,\
-    MESSAGE_AWAIT
+    MESSAGE_NONE
 from athome.api import plugin
 
 MODULE_PREFIX = '__athome_plugin_'
@@ -92,7 +91,7 @@ class Runner:
                 if msg.value == 'stop':
                     self.pipe_out('exit')
                     self.running = False
-            elif msg.type == MESSAGE_AWAIT:
+            else:
                 task = msg.value
                 if not task.done():
                     task.cancel()
@@ -112,7 +111,7 @@ class Runner:
         """Create task from coro or awaitable and put it into await_queue"""
 
         task = asyncio.ensure_future(coro)
-        self.events.put_nowait(Message(MESSAGE_AWAIT, task))
+        self.events.put_nowait(Message(MESSAGE_NONE, task))
 
     # shortcut for function
     faf = fire_and_forget

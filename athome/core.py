@@ -110,7 +110,7 @@ class Core(SystemModule):
     def after_stopped(self):
         LOGGER.debug('core, after_stopped')
         all_tasks = asyncio.Task.all_tasks(loop=self.loop)
-        map(lambda x: x.cancel(), all_tasks)
+        list(map(lambda x: x.cancel(), all_tasks))
         if all_tasks:
             single = asyncio.gather(
                 *all_tasks,
