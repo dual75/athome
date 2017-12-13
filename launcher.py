@@ -51,15 +51,13 @@ def ask_exit(signame):
     signame: name of the signal
     """
 
-    LOGGER.info("got signal %s exit" % signame)
+    LOGGER.info("got signal %s exit", signame)
     CORE.stop()
 
 
-def install_signal_handlers(args):
+def install_signal_handlers():
     """Install signal handlers for SIGINT and SIGTERM
 
-    Parameters:
-    param:
     """
 
     signames = ('SIGINT', 'SIGTERM')
@@ -93,7 +91,7 @@ def main():
             os.setsid()
             os.umask(0)
 
-    install_signal_handlers(args)
+    install_signal_handlers()
     try:
         CORE.initialize(LOOP, config)
         CORE.run_forever()

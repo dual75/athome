@@ -91,7 +91,7 @@ class Republisher(object):
         if self.listen_task:
             if not self.listen_task.done():
                 self.listen_task.cancel()
-            self.bridge.await_queue.put_nowait(
+            Core().await_queue.put_nowait(
                 Message(MESSAGE_AWAIT, self.listen_task)
             )
             self.listen_task = None
@@ -204,8 +204,8 @@ class Republisher(object):
 class Subsystem(SubsystemModule):
     """MQTT Bridge subsystem"""
 
-    def __init__(self, name, await_queue):
-        super().__init__(name, await_queue)
+    def __init__(self, name):
+        super().__init__(name)
         self.broker_infos = None
         self.republishers = []
         self.broker_infos = []

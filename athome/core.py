@@ -7,8 +7,8 @@ import contextlib
 import importlib
 import logging
 
-from athome import Message, MESSAGE_AWAIT, MESSAGE_EVT, \
-    MESSAGE_START, MESSAGE_STOP, MESSAGE_SHUTDOWN
+from athome import Message, MESSAGE_EVT, \
+    MESSAGE_START, MESSAGE_STOP
 from athome.module import SystemModule
 
 LOGGER = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class Core(SystemModule):
 
     def __init__(self):
         if not self.__initialized:
-            super().__init__('core', asyncio.Queue())
+            super().__init__('core')
             self._subsystems = {}
             self.loop = None
             self.event_task = None
@@ -46,20 +46,21 @@ class Core(SystemModule):
             try:
                 module = importlib.import_module(module_name)
                 subsystem_class = getattr(module, 'Subsystem')
-                subsystem = subsystem_class(name, self.await_queue)
+                subsystem = subsystem_class(name)
                 self._subsystems[name] = subsystem
                 subsystem.initialize(
                     self.loop, 
                     self.config['subsystem'][name]['config']
                 )
-            except:
+            except Exception as ex:
                 LOGGER.exception('Error in initialization')
-                raise
+                raise ex
 
     def run_forever(self):
         """Execute run coroutine until stopped"""
 
         self.start()
+        self.emit('athome_starting')
         self.await_task = asyncio.ensure_future(
             self._await_cycle(),
             loop=self.loop
@@ -69,19 +70,18 @@ class Core(SystemModule):
             self.await_task, 
             loop=self.loop
         )
-        self.loop.run_until_complete(self.single_task)
+        self.loop.run_until_complete(single_task)
+        self.stopped()
 
     async def run(self):
         self.started()
         message = Message(MESSAGE_START, None)
         while message.type != MESSAGE_STOP:
-            message = await self.await_queue.get()
+            message = await self.event_queue.get()
             if message.type == MESSAGE_EVT:
                 await self._propagate_event(message.value)
-        self.await_queue.join()
         self.await_task.cancel()
         await self.await_task
-        self.stopped()
         self.emit('athome_stopped')
         LOGGER.info('core.run() coro exiting')
 
@@ -91,13 +91,7 @@ class Core(SystemModule):
                 LOGGER.debug('awaiting fot task')
                 task = self.await_queue.get()
                 try:
-                    if LOGGER.isEnabledFor(logging.DEBUG):
-                        LOGGER.debug('Now awaiting %s...', str(task))
                     await task
-                except asyncio.CancelledError as ex:
-                    LOGGER.info('await ... caught CancelledError ...')
-                except Exception as ex:
-                    LOGGER.warning("await... caught %s on await ...", ex)
                 finally:
                     LOGGER.info('await ... done')
                 self.await_queue.task_done()
@@ -111,13 +105,18 @@ class Core(SystemModule):
 
     def _on_stop(self):
         self.emit('athome_stopping')
-        self.await_queue.put_nowait(Message(MESSAGE_STOP, None))
+        self.event_queue.put_nowait(Message(MESSAGE_STOP, None))
 
     def after_stopped(self):
         LOGGER.debug('core, after_stopped')
-        all_task = asyncio.Task.all_tasks(loop=self.loop)
+        all_tasks = asyncio.Task.all_tasks(loop=self.loop)
+        map(lambda x: x.cancel(), all_tasks)
         if all_tasks:
-            single = asyncio.gather(all_tasks, loop=self.loop)
+            single = asyncio.gather(
+                *all_tasks,
+                loop=self.loop, 
+                return_exceptions=True
+            )
             self.loop.run_until_complete(single)
 
     def emit(self, evt):
@@ -129,7 +128,7 @@ class Core(SystemModule):
         """Create task from coro or awaitable and put it into await_queue"""
 
         task = asyncio.ensure_future(coro, loop=self.loop)
-        self.await_queue.put_nowait(coro)
+        self.await_queue.put_nowait(task)
 
     # shortcut for function
     faf = fire_and_forget

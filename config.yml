@@ -1,6 +1,6 @@
 subsystem:
     hbmqtt:
-            enable: false
+        enable: true
         config:
             listeners:
                 default:
@@ -64,7 +64,7 @@ logging:
         
     formatters:
         standard:
-            format: "%(levelname)s %(asctime)s [%(name)s]  %(message)s"
+            format: "%(name)s %(asctime)s [%(levelname)s] %(message)s"
 
     handlers:
         console_handler:

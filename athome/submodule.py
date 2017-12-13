@@ -5,7 +5,6 @@
 import asyncio
 import logging
 
-from athome import Message, MESSAGE_AWAIT
 from athome.module import SystemModule
 from athome.core import Core
 
@@ -14,8 +13,8 @@ LOGGER = logging.getLogger(__name__)
 
 class SubsystemModule(SystemModule):
 
-    def __init__(self, name, await_queue):
-        super().__init__(name, await_queue)
+    def __init__(self, name):
+        super().__init__(name)
         self.core = Core()
         self.event_task = None
         self.event_queue = asyncio.Queue()
@@ -41,4 +40,3 @@ class SubsystemModule(SystemModule):
                 self.stop()
             elif evt == 'athome_shutdown':
                 self.shutdown()
-    

@@ -15,8 +15,8 @@ LOGGER = logging.getLogger(__name__)
 class Subsystem(SubsystemModule):
     """Subsystem embedding hbmqtt broker"""
 
-    def __init__(self, name, await_queue):
-        super().__init__(name, await_queue)
+    def __init__(self, name):
+        super().__init__(name)
         self.broker = None
 
     def on_start(self):

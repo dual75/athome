@@ -22,8 +22,8 @@ LOGGER = logging.getLogger(__name__)
 class Subsystem(SubsystemModule):
     """Plugins subsystem"""
 
-    def __init__(self, name, event_queue):
-        super().__init__(name, event_queue)
+    def __init__(self, name):
+        super().__init__(name)
         self.proc = None
 
     def on_stop(self):

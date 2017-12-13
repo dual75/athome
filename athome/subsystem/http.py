@@ -108,8 +108,8 @@ async def post_core_handler(request):
 class Subsystem(SubsystemModule):
     """Subsystem embedding http"""
 
-    def __init__(self, name, await_queue):
-        super().__init__(name, await_queue)
+    def __init__(self, name):
+        super().__init__(name)
         self.app = None
 
     def on_start(self):

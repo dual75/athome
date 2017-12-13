@@ -9,12 +9,11 @@ __all__ = ['core', 'module']
 
 from collections import namedtuple
 
-MESSAGE_AWAIT, \
 MESSAGE_EVT, \
 MESSAGE_START, \
 MESSAGE_STOP, \
 MESSAGE_SHUTDOWN, \
-MESSAGE_NONE = range(6)
+MESSAGE_NONE = range(5)
 
 Message = namedtuple('Message', ('type', 'value'))
 

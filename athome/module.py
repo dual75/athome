@@ -4,10 +4,8 @@
 
 import asyncio
 import logging
-import multiprocessing
 
 from transitions import Machine
-from athome import Message, MESSAGE_AWAIT
 
 LOGGER = logging.getLogger(__name__)
 
@@ -84,7 +82,7 @@ class SystemModule():
                 }
         ]
 
-    def __init__(self, name, event_queue=None):
+    def __init__(self, name):
         self.name = name
         self.machine = Machine(model=self,
                             states=SystemModule.states,
@@ -93,7 +91,7 @@ class SystemModule():
         self.loop = None
         self.config = None
         self.run_task = None
-        self.event_queue = event_queue
+        self.event_queue = asyncio.Queue()
 
     def _on_initialize(self, loop, config):
         """Before 'initialize' callback"""
