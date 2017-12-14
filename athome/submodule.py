@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+import contextlib
 
 from athome.module import SystemModule
 from athome.core import Core
@@ -23,13 +24,14 @@ class SubsystemModule(SystemModule):
         """Before 'initialize' callback"""
 
         super()._on_initialize(loop, config)
-        self.event_task = asyncio.ensure_future(self._read_events(), 
+        self.event_task = asyncio.ensure_future(self._event_cycle(), 
                                                 loop=self.core.loop)
 
-    async def _read_events(self):
-        while True:
-            event = await self.event_queue.get()
-            await self.on_event(event)
+    async def _event_cycle(self):
+        with contextlib.suppress(asyncio.CancelledError):
+            while True:
+                event = await self.event_queue.get()
+                await self.on_event(event)
 
     async def on_event(self, evt):
         LOGGER.debug('subsystem %s got event %s', self.name, evt)

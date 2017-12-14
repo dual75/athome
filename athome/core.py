@@ -62,7 +62,7 @@ class Core(SystemModule):
         self.start()
         self.emit('athome_starting')
         self.await_task = asyncio.ensure_future(
-            self._await_cycle(),
+            self._await_consumer(),
             loop=self.loop
         )
         single_task = asyncio.gather(
@@ -80,14 +80,16 @@ class Core(SystemModule):
             message = await self.event_queue.get()
             if message.type == MESSAGE_EVT:
                 await self._propagate_event(message.value)
-        self.await_task.cancel()
+        self._propagate_event('athome_stopped')
+        await asyncio.sleep(3, loop=self.loop)
+        if not self.awat_task.done():
+            self.await_task.cancel()
         await self.await_task
-        self.emit('athome_stopped')
         LOGGER.info('core.run() coro exiting')
 
-    async def _await_cycle(self):
+    async def _await_consumer(self):
         with contextlib.suppress(asyncio.CancelledError):
-            while True:
+            while self.is_running() or not self.await_queue.empty():
                 LOGGER.debug('awaiting fot task')
                 task = self.await_queue.get()
                 try:
@@ -108,7 +110,6 @@ class Core(SystemModule):
         self.event_queue.put_nowait(Message(MESSAGE_STOP, None))
 
     def after_stopped(self):
-        LOGGER.debug('core, after_stopped')
         all_tasks = asyncio.Task.all_tasks(loop=self.loop)
         list(map(lambda x: x.cancel(), all_tasks))
         if all_tasks:

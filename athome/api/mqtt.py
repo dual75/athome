@@ -23,5 +23,5 @@ async def local_client():
     """
 
     result = MQTTClient(config=LOCAL_CLIENT_CONFIG)
-    await result.connect('mqtt://localhost:1833', cleansession=True)
+    await result.connect('mqtt://localhost:1883', cleansession=True)
     return result

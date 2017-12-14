@@ -9,14 +9,19 @@ A simple @home plugin, that publishes every 5 seconds.
 
 import logging
 import asyncio
+import hbmqtt.client
+
 from athome.api import mqtt
 from contextlib import suppress
 
 LOGGER = logging.getLogger(__name__)
 
 async def engage(loop):
-    global client
-    client = await mqtt.local_client()
+    try:
+        client = await mqtt.local_client()
+    except hbmqtt.client.ConnectException as ex:
+        return
+        
     try:
         while True:
             await asyncio.sleep(5)
@@ -24,4 +29,4 @@ async def engage(loop):
     except asyncio.CancelledError:
         LOGGER.debug('heartbeat cancelled')
     finally:
-        client.disconnect()
+        await client.disconnect()

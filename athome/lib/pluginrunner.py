@@ -1,3 +1,6 @@
+# Copyright (c) 2017 Alessandro Duca
+#
+# See the file LICENCE for copying permission.
 
 import os
 import sys
@@ -18,32 +21,11 @@ from athome import Message,\
     MESSAGE_EVT,\
     MESSAGE_NONE
 from athome.api import plugin
+from athome.lib.lineprotocol import LineProtocol
 
 MODULE_PREFIX = '__athome_plugin_'
 
 LOGGER = logging.getLogger(__name__)
-
-
-class LineProtocol(asyncio.Protocol):
-    def __init__(self, callback):
-        self._buffer = bytearray()
-        self.callback = callback
-
-    def data_received(self, data):
-        self._buffer.extend(data)
-        for line in self._lines():
-            self.callback(line)
-
-    def _lines(self):
-        s_ind, e_ind = 0, -1 
-        while e_ind != 0:
-            e_ind = self._buffer.find(b'\n', s_ind) + 1
-            if e_ind:
-                line = self._buffer[s_ind:e_ind].decode('utf-8')
-                yield line
-                s_ind = e_ind
-        if s_ind > 0:
-            del self._buffer[:s_ind]
 
 
 class Runner:
@@ -74,10 +56,9 @@ class Runner:
             asyncio.BaseProtocol,
             sys.stdout
         )
-
         self.running = True
         await asyncio.gather(
-                asyncio.ensure_future(self._scan_loop()),
+                asyncio.ensure_future(self._directory_scan_loop()),
                 asyncio.ensure_future(self._event_loop())
                 )
         
@@ -102,7 +83,7 @@ class Runner:
                 finally:
                     LOGGER.debug('awaited %s', task)
 
-    async def _scan_loop(self):
+    async def _directory_scan_loop(self):
         while self.running:
             await self._directory_scan()
             await asyncio.sleep(self.check_interval)
@@ -170,7 +151,8 @@ class Runner:
         result = [(f, os.path.join(plugins_dir, f))
                   for f in os.listdir(plugins_dir)
                   if f.endswith('.py')
-                  and os.path.isfile(os.path.join(plugins_dir, f))
+                    and os.path.isfile(os.path.join(plugins_dir, f))
+                    and os.access(os.path.join(plugins_dir, f), os.R_OK)
                  ]
         return result
 
@@ -243,6 +225,17 @@ def main():
     runner = Runner(sys.argv[1], int(sys.argv[2]))
     task = asyncio.ensure_future(runner.run())
     loop.run_until_complete(task)
+
+    tasks = asyncio.Task.all_tasks()
+    if tasks:
+        for task in tasks:
+            task.cancel()
+        gather_task = asyncio.gather(*tasks, 
+            loop=loop, 
+            return_exceptions=True
+        )
+        loop.run_until_complete(gather_task)
+
     loop.close()
     sys.exit(0)
 

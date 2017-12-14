@@ -13,7 +13,6 @@ from hbmqtt.client import ClientException, ConnectException, MQTTClient
 from athome.core import Core
 from athome.submodule import SubsystemModule
 from athome.lib.management import ManagedObject
-from athome import Message, MESSAGE_AWAIT
 
 LOGGER = logging.getLogger(__name__)
 
@@ -91,9 +90,7 @@ class Republisher(object):
         if self.listen_task:
             if not self.listen_task.done():
                 self.listen_task.cancel()
-            Core().await_queue.put_nowait(
-                Message(MESSAGE_AWAIT, self.listen_task)
-            )
+            Core().await_queue.put_nowait(self.listen_task)
             self.listen_task = None
 
         # if listen didn't exit on CancelledError we try
