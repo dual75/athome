@@ -80,8 +80,8 @@ class Core(SystemModule):
             message = await self.event_queue.get()
             if message.type == MESSAGE_EVT:
                 await self._propagate_event(message.value)
-        self._propagate_event('athome_stopped')
-        await asyncio.sleep(3, loop=self.loop)
+        await self._propagate_event('athome_stopped')
+        await asyncio.sleep(3, loop=self.loop) 
         if not self.awat_task.done():
             self.await_task.cancel()
         await self.await_task

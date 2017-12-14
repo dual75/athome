@@ -2,18 +2,15 @@
 #
 # See the file LICENCE for copying permission.
 
-import os
-import sys
 import logging
 import json
 
-from athome.lib import pluginrunner, procsubsystem
+from athome.lib.procsubsystem import ProcSubsystem
 
 
 LOGGER = logging.getLogger(__name__)
 
-
-class Subsystem(procsubsystem.ProcSubsystem):
+class Subsystem(ProcSubsystem):
     """Subprocess subsystem"""
 
     def __init__(self, name):

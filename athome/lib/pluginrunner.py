@@ -4,91 +4,36 @@
 
 import os
 import sys
-import json
 import importlib
 import logging
 import asyncio
 import concurrent
 from functools import partial
 
-from athome import Message, MESSAGE_LINE
+from athome import Message, MESSAGE_NONE
 from athome.api import plugin
-from athome.lib.lineprotocol import LineProtocol
+from athome.lib.runner import RunnerSupport
 
 MODULE_PREFIX = '__athome_plugin_'
 
 LOGGER = logging.getLogger(__name__)
 
 
-class Runner:
+class Runner(RunnerSupport):
 
     def __init__(self, plugins_dir, check_interval):
-        self.events = asyncio.Queue()
-        self.pipe_stream = None
+        super().__init__()
         self.plugins = dict()
         self.plugins_dir = plugins_dir
         self.check_interval = check_interval
-        self.run_task = None
-        
-    def pipe_in(self, line):
-        LOGGER.info('protocol yieled line: %s', line)
-        self.events.put_nowait(Message(MESSAGE_LINE, line[:-1]))
-        self.pipe_out(line)
 
-    def pipe_out(self, str_):
-        self.pipe_stream.write((str_ + '\n').encode('utf-8'))
-
-    async def run(self):
-        loop = asyncio.get_event_loop()
-        _, protocol = await loop.connect_read_pipe(
-            lambda: LineProtocol(self.pipe_in), 
-            sys.stdin
-        )
-        self.pipe_stream, _ = await loop.connect_write_pipe(
-            asyncio.BaseProtocol,
-            sys.stdout
-        )
-        self.running = True
-        await asyncio.gather(
-                asyncio.ensure_future(self._directory_scan_loop()),
-                asyncio.ensure_future(self._event_loop())
-                )
-        
-    async def _event_loop(self):
-        while self.running or not self.events.empty():
-            msg = await self.events.get()
-            LOGGER.info('Runner got msg %s: %s', msg.type, msg.value)
-            
-            if msg.type == MESSAGE_LINE:
-                LOGGER.debug('got event %s', msg.value)
-                command, arg = self.parseLine(msg.value)
-                if command == 'stop':
-                    self.pipe_out('exit')
-                    self.running = False
-                elif command == 'config':
-                    pass
-            else:
-                task = msg.value
-                if not task.done():
-                    task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError as ex:
-                    LOGGER.debug('Cancelled task %s', task)
-                finally:
-                    LOGGER.debug('awaited %s', task)
-
-    def parseLine(self, line):
-        command, arg, chunks = line, None, line.split(' ', 1)
-        if len(chunks) > 1:
-            command, args = chunks[0], chunks[1]
-            arg = json.loads(args)
-        return command, arg
-
-    async def _directory_scan_loop(self):
+    async def start_task(self):
         while self.running:
             await self._directory_scan()
             await asyncio.sleep(self.check_interval)
+
+    async def stop_task(self):
+        pass
 
     def fire_and_forget(self, coro):
         """Create task from coro or awaitable and put it into await_queue"""
@@ -132,7 +77,7 @@ class Runner:
         """
 
         self.plugins[plugin_.name] = plugin_
-        plugin_.start(asyncio.get_event_loop())
+        plugin_.start(self.loop)
 
     def _deactivate_plugin(self, name):
         """Remove a plugin from current

@@ -14,7 +14,7 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: false
+        enable: true
         config:
             brokers:
                 local:
@@ -81,7 +81,7 @@ logging:
     loggers: 
         asyncio:
             level: 'DEBUG'
-            handlers: [ 'console_handler']
+            handlers: ['console_handler']
         transitions:
             level: 'WARNING'
             handlers: ['console_handler']
@@ -92,7 +92,7 @@ logging:
             level: 'DEBUG'
             handlers: ['console_handler']
         hbmqtt: 
-            level: 'DEBUG'
+            level: 'WARNING'
             handlers: ['console_handler']
 
 
