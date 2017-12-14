@@ -18,7 +18,9 @@ class Subsystem(procsubsystem.ProcSubsystem):
     def __init__(self, name):
         super().__init__(name, 'athome.lib.pluginrunner')
 
-    def on_initialize(self, loop, config):
-        super().on_initialize(loop, config)
-        self.params = [config['pluginsdir'], str(config['plugin_poll_interval'])]
+    def on_initialize(self):
+        self.params = [
+            self.config['plugins_dir'], 
+            str(self.config['plugin_poll_interval'])
+            ]
 

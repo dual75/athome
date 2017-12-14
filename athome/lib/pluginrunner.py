@@ -4,22 +4,14 @@
 
 import os
 import sys
-
+import json
 import importlib
-
-from contextlib import suppress
-from functools import partial
-
 import logging
-
 import asyncio
 import concurrent
+from functools import partial
 
-from athome import Message,\
-    MESSAGE_START,\
-    MESSAGE_STOP,\
-    MESSAGE_EVT,\
-    MESSAGE_NONE
+from athome import Message, MESSAGE_LINE
 from athome.api import plugin
 from athome.lib.lineprotocol import LineProtocol
 
@@ -40,7 +32,7 @@ class Runner:
         
     def pipe_in(self, line):
         LOGGER.info('protocol yieled line: %s', line)
-        self.events.put_nowait(Message(MESSAGE_EVT, line[:-1]))
+        self.events.put_nowait(Message(MESSAGE_LINE, line[:-1]))
         self.pipe_out(line)
 
     def pipe_out(self, str_):
@@ -67,11 +59,14 @@ class Runner:
             msg = await self.events.get()
             LOGGER.info('Runner got msg %s: %s', msg.type, msg.value)
             
-            if msg.type == MESSAGE_EVT:
+            if msg.type == MESSAGE_LINE:
                 LOGGER.debug('got event %s', msg.value)
-                if msg.value == 'stop':
+                command, arg = self.parseLine(msg.value)
+                if command == 'stop':
                     self.pipe_out('exit')
                     self.running = False
+                elif command == 'config':
+                    pass
             else:
                 task = msg.value
                 if not task.done():
@@ -82,6 +77,13 @@ class Runner:
                     LOGGER.debug('Cancelled task %s', task)
                 finally:
                     LOGGER.debug('awaited %s', task)
+
+    def parseLine(self, line):
+        command, arg, chunks = line, None, line.split(' ', 1)
+        if len(chunks) > 1:
+            command, args = chunks[0], chunks[1]
+            arg = json.loads(args)
+        return command, arg
 
     async def _directory_scan_loop(self):
         while self.running:

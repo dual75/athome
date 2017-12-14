@@ -13,7 +13,7 @@ MESSAGE_EVT, \
 MESSAGE_START, \
 MESSAGE_STOP, \
 MESSAGE_SHUTDOWN, \
-MESSAGE_NONE = range(5)
+MESSAGE_LINE = range(5)
 
 Message = namedtuple('Message', ('type', 'value'))
 

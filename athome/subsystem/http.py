@@ -117,10 +117,14 @@ class Subsystem(SubsystemModule):
 
         self.core.emit('http_starting')
         self.app = aiohttp.web.Application(loop=self.core.loop)
-        self.app.router.add_route('GET', '/core', get_core_handler)
-        self.app.router.add_route('POST', '/core/{method}', post_core_handler)
-        self.app.router.add_route('GET', '/subsystem/{name}', get_subsystem_handler)
-        self.app.router.add_route('POST', '/subsystem/{name}/{method}', post_subsystem_handler)
+        self.app.router.add_route('GET', '/core', 
+            get_core_handler)
+        self.app.router.add_route('POST', '/core/{method}', 
+            post_core_handler)
+        self.app.router.add_route('GET', '/subsystem/{name}', 
+            get_subsystem_handler)
+        self.app.router.add_route('POST', '/subsystem/{name}/{method}', 
+            post_subsystem_handler)
 
     async def run(self):
         """Start broker"""
