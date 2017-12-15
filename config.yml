@@ -1,6 +1,6 @@
 subsystem:
     hbmqtt:
-        enable: true
+        enable: false
         config:
             listeners:
                 default:
@@ -14,7 +14,7 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: true
+        enable: false
         config:
             brokers:
                 local:
@@ -37,7 +37,7 @@ subsystem:
                 ]
 
     plugins:
-        enable: false
+        enable: true
         config:
             plugins_dir: 'plugindir'
             plugin_poll_interval: 5
@@ -81,7 +81,7 @@ logging:
     loggers: 
         asyncio:
             level: 'DEBUG'
-            handlers: ['console_handler']
+            handlers: [ 'console_handler']
         transitions:
             level: 'WARNING'
             handlers: ['console_handler']
@@ -92,7 +92,7 @@ logging:
             level: 'DEBUG'
             handlers: ['console_handler']
         hbmqtt: 
-            level: 'WARNING'
+            level: 'DEBUG'
             handlers: ['console_handler']
 
 

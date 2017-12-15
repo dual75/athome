@@ -103,6 +103,7 @@ def main():
     except Exception as ex:
         LOGGER.exception(ex)
         result = -1
+    CORE.shutdown()
 
     sys.exit(result)
 

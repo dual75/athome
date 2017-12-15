@@ -17,7 +17,7 @@ from athome.lib.management import ManagedObject
 LOGGER = logging.getLogger(__name__)
 
 
-class Republisher(object):
+class Republisher():
     """
     """
 
@@ -124,10 +124,11 @@ class Republisher(object):
                 self.client = None
             LOGGER.debug("republisher list_task for %s canceled", self.url)
         except ConnectException as ex:
-            LOGGER.exception('can\'t connect republisher, now stopping mqttbridge')
+            LOGGER.exception('can\'t connect republisher, stopping bridge')
             self.fail(ex)
         except Exception as ex:
-            LOGGER.exception('exception for %s in error, now stopping bridge', self.url)
+            LOGGER.exception('exception for %s in error, stopping bridge', 
+                             self.url)
             self.fail(ex)
 
     def _on_fail(self, exception):
@@ -138,7 +139,8 @@ class Republisher(object):
 
         This method republishes a MQTT message to the connected broker, an hash
         value of any forwarded method is kept to prevent infinite republishing.
-        The hash of republished messages is deleted upon the first retransimission retry.
+        The hash of republished messages is deleted upon the first 
+        retransimission retry.
 
         """
 
