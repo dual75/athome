@@ -77,7 +77,7 @@ class Core(SystemModule):
         self.started()
         message = Message(MESSAGE_START, None)
         while message.type != MESSAGE_STOP:
-            message = await self.event_queue.get()
+            message = await self.message_queue.get()
             if message.type == MESSAGE_EVT:
                 await self._propagate_event(message.value)
         await self._propagate_event('athome_stopped')
@@ -100,14 +100,14 @@ class Core(SystemModule):
 
     async def _propagate_event(self, evt):
         for subsystem in self._subsystems.values():
-            await subsystem.event_queue.put(evt)
+            await subsystem.message_queue.put(evt)
 
     def after_started(self):
         self.emit("athome_started")
 
     def _on_stop(self):
         self.emit('athome_stopping')
-        self.event_queue.put_nowait(Message(MESSAGE_STOP, None))
+        self.message_queue.put_nowait(Message(MESSAGE_STOP, None))
 
     def after_stopped(self):
         all_tasks = asyncio.Task.all_tasks(loop=self.loop)
@@ -123,7 +123,7 @@ class Core(SystemModule):
     def emit(self, evt):
         """Propagate event 'evt' to _subsystems"""
 
-        self.event_queue.put_nowait(Message(MESSAGE_EVT, evt))
+        self.message_queue.put_nowait(Message(MESSAGE_EVT, evt))
 
     def fire_and_forget(self, coro):
         """Create task from coro or awaitable and put it into await_queue"""

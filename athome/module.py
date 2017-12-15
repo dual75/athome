@@ -91,7 +91,7 @@ class SystemModule():
         self.loop = None
         self.config = None
         self.run_task = None
-        self.event_queue = asyncio.Queue()
+        self.message_queue = asyncio.Queue()
 
     def _on_initialize(self, loop, config):
         """Before 'initialize' callback"""
@@ -139,10 +139,6 @@ class SystemModule():
         """Before 'stop' callback"""
 
         self.on_stop()
-        #if not self.run_task.done():
-        #    self.run_task.cancel()
-        #self.await_queue.put_nowait(Message(MESSAGE_AWAIT, self.run_task))
-        #self.run_task = None
 
     def on_stop(self):
         """Perform module stop activities, mandatory"""

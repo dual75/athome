@@ -21,8 +21,8 @@ LOGGER = logging.getLogger(__name__)
 class ProcSubsystem(SubsystemModule):
     """Subprocess subsystem"""
 
-    def __init__(self, name, module, params=list()):
-        super().__init__(name)
+    def __init__(self, name):
+        super().__init__(name, module, params=list())
         assert isinstance(params, (list, tuple))
         self.proc = None
         self.module = module
@@ -39,7 +39,7 @@ class ProcSubsystem(SubsystemModule):
         This method is a *coroutine*.
         """
 
-        params = [sys.executable, '-m', self.module] + self.params 
+        params = [sys.executable, '-m', self.module] 
         with contextlib.suppress(asyncio.CancelledError):
             self.proc = await asyncio.create_subprocess_exec(
                 *params,

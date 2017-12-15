@@ -17,19 +17,18 @@ class SubsystemModule(SystemModule):
     def __init__(self, name):
         super().__init__(name)
         self.core = Core()
-        self.event_task = None
-        self.event_queue = asyncio.Queue()
+        self.message_task = None
 
     def _on_initialize(self, loop, config):
         """Before 'initialize' callback"""
 
         super()._on_initialize(loop, config)
-        self.event_task = asyncio.ensure_future(self._event_cycle(), 
+        self.message_task = asyncio.ensure_future(self._message_cycle(), 
                                                 loop=self.core.loop)
 
-    async def _event_cycle(self):
+    async def _message_cycle(self):
         with contextlib.suppress(asyncio.CancelledError):
-            while True:
+            while not self.is_closed():
                 event = await self.event_queue.get()
                 await self.on_event(event)
 
@@ -42,3 +41,8 @@ class SubsystemModule(SystemModule):
                 self.stop()
             elif evt == 'athome_shutdown':
                 self.shutdown()
+
+    def on_shutdown(self):
+        self.message_task.cancel()
+        self.core.await_queue.put_nowait(self.message_task)
+
