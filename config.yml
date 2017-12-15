@@ -1,6 +1,6 @@
 subsystem:
     hbmqtt:
-        enable: false
+        enable: true
         config:
             listeners:
                 default:
@@ -40,7 +40,7 @@ subsystem:
         enable: true
         config:
             plugins_dir: 'plugindir'
-            plugin_poll_interval: 5
+            plugin_poll_interval: 3
 
     http:
         enable: false

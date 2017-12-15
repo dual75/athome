@@ -10,7 +10,7 @@ import json
 
 from hbmqtt.broker import Broker
 
-from athome.lib.runner import RunnerSupport
+from athome.lib.runnersupport import RunnerSupport
 from athome.lib.lineprotocol import LineProtocol
 
 LOGGER = logging.getLogger(__name__)

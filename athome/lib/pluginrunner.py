@@ -11,8 +11,8 @@ import concurrent
 from functools import partial
 
 from athome import Message, MESSAGE_NONE
-from athome.api import plugin
-from athome.lib.runner import RunnerSupport
+from athome.api.plugin import Plugin, ENGAGE_METHOD
+from athome.lib.runnersupport import RunnerSupport
 
 MODULE_PREFIX = '__athome_plugin_'
 
@@ -39,7 +39,7 @@ class Runner(RunnerSupport):
         """Create task from coro or awaitable and put it into await_queue"""
 
         task = asyncio.ensure_future(coro)
-        self.events.put_nowait(Message(MESSAGE_NONE, task))
+        self.tasks.put_nowait(task)
 
     # shortcut for function
     faf = fire_and_forget
@@ -149,11 +149,11 @@ class Runner(RunnerSupport):
         result = None
         module_name = MODULE_PREFIX + fname[:-3]
         module = self._import_module(module_name, fpath)
-        engage = getattr(module, plugin.ENGAGE_METHOD, None)
+        engage = getattr(module, ENGAGE_METHOD, None)
         loop = asyncio.get_event_loop()
         if engage and asyncio.iscoroutinefunction(engage):
             LOGGER.debug("found plugin %s", fname)
-            result = plugin.Plugin(loop, fname, module,
+            result = Plugin(loop, fname, module,
                                    mtime, self.events)
             sys.modules[module_name] = result
         else:

@@ -2,4 +2,4 @@
 #
 # See the file LICENCE for copying permission.
 
-__all__ = ['hbmqtt', 'mqttbridge','plugins']
+__all__ = ['hbmqtt', 'mqttbridge','plugins', 'procsubsystem']

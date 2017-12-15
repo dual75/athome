@@ -2,18 +2,19 @@
 #
 # See the file LICENCE for copying permission.
 
-import os
 import sys
 import asyncio
 import contextlib
 import logging
-import signal
-from asyncio import subprocess
-import functools
 
-from athome.lib import pluginrunner
-from athome.submodule import SubsystemModule
+from athome.subsystem import SubsystemModule
 
+LINE_STOP = 'stop\n'
+LINE_START = 'start\n'
+LINE_EXIT = 'exit\n'
+LINE_STARTED = 'started\n'
+
+COMMAND_STOP = 'stop'
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,8 +22,8 @@ LOGGER = logging.getLogger(__name__)
 class ProcSubsystem(SubsystemModule):
     """Subprocess subsystem"""
 
-    def __init__(self, name):
-        super().__init__(name, module, params=list())
+    def __init__(self, name, module, params=list()):
+        super().__init__(name)
         assert isinstance(params, (list, tuple))
         self.proc = None
         self.module = module
@@ -31,7 +32,7 @@ class ProcSubsystem(SubsystemModule):
     def on_stop(self):
         """On 'stop' event callback method"""
 
-        self.core.faf(self.sendLine('stop'))
+        self.core.faf(self.send_line('stop'))
 
     async def run(self):
         """Subsystem activity method
@@ -39,12 +40,12 @@ class ProcSubsystem(SubsystemModule):
         This method is a *coroutine*.
         """
 
-        params = [sys.executable, '-m', self.module] 
+        params = [sys.executable, '-m', self.module] + self.params
         with contextlib.suppress(asyncio.CancelledError):
             self.proc = await asyncio.create_subprocess_exec(
                 *params,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
                 loop=self.loop)
             
             self.started()
@@ -69,8 +70,6 @@ class ProcSubsystem(SubsystemModule):
     def after_stopped(self):
         self.core.emit('{}_stopped'.format(self.name))
 
-    async def sendLine(self, payload):
+    async def send_line(self, payload):
         await self.proc.communicate((payload + '\n').encode('utf-8'))
-        LOGGER.info('sent line %s', payload)
-
 

@@ -6,7 +6,8 @@ import asyncio
 import logging
 import contextlib
 
-from athome.module import SystemModule
+from athome import MESSAGE_EVT
+from athome.system import SystemModule
 from athome.core import Core
 
 LOGGER = logging.getLogger(__name__)
@@ -28,19 +29,21 @@ class SubsystemModule(SystemModule):
 
     async def _message_cycle(self):
         with contextlib.suppress(asyncio.CancelledError):
+            # messages are being processed as long as Subsystem is not 'closed'
             while not self.is_closed():
-                event = await self.event_queue.get()
-                await self.on_event(event)
+                message = await self.message_queue.get()
+                await self.on_message(message)
 
-    async def on_event(self, evt):
-        LOGGER.debug('subsystem %s got event %s', self.name, evt)
+    async def on_message(self, msg):
+        LOGGER.debug('subsystem %s got msg %s', self.name, msg)
         if not self.is_failed():
-            if evt == 'athome_started':
-                self.start()
-            elif evt == 'athome_stopping': 
-                self.stop()
-            elif evt == 'athome_shutdown':
-                self.shutdown()
+            if msg.type == MESSAGE_EVT:
+                if msg.value == 'athome_started':
+                    self.start()
+                elif msg.value == 'athome_stopping': 
+                    self.stop()
+                elif msg.value == 'athome_shutdown':
+                    self.shutdown()
 
     def on_shutdown(self):
         self.message_task.cancel()

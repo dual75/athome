@@ -10,7 +10,7 @@ import json
 import aiohttp
 from aiohttp import web
 
-from athome.submodule import SubsystemModule
+from athome.subsystem import SubsystemModule
 from athome.core import Core
 from athome.lib.management import managed, ManagedObject
 from athome.lib.locator import Cache, NameError
