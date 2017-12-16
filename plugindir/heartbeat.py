@@ -16,17 +16,8 @@ from contextlib import suppress
 
 LOGGER = logging.getLogger(__name__)
 
-async def engage(loop):
-    try:
-        client = await mqtt.local_client()
-    except hbmqtt.client.ConnectException as ex:
-        return
-        
-    try:
-        while True:
-            await asyncio.sleep(5)
-            await client.publish('heartbeat', b'tump!')
-    except asyncio.CancelledError:
-        LOGGER.debug('heartbeat cancelled')
-    finally:
-        await client.disconnect()
+async def task_heartbeat(loop):
+    async with mqtt.local_client() as client:
+        await asyncio.sleep(5)
+        await client.publish('heartbeat', b'tump!')
+

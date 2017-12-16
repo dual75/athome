@@ -14,7 +14,7 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: false
+        enable: true
         config:
             brokers:
                 local:
@@ -22,21 +22,22 @@ subsystem:
                     protocol: 'mqtt'
                     host: 'localhost'
                     topics: [
-                        ['another', 1]
+                        ['extern/tv/0/mute', 1], 
+                        ['extern/tv/0/volume', 1]
                     ]
-                single:
-                    enable: false
+                extern:
+                    enable: true
                     protocol: 'mqtt'
                     host: 'm23.cloudmqtt.com'
                     port: 11702
                     username: 'oleffxza'
                     password: '8ViMtnkje343'
                     topics: [
-                        ['light/1', 0], 
-                    ['another', 0]
-                ]
+                        ['tv/0/mute/set', 1], 
+                        ['tv/0/volume/set', 1]
+                    ]
 
-    plugins:
+    tasks:
         enable: true
         config:
             plugins_dir: 'plugindir'

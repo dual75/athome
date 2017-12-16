@@ -10,12 +10,12 @@ import json
 
 from hbmqtt.broker import Broker
 
-from athome.lib.runnersupport import RunnerSupport
+from athome.lib.runnersupport import RunnerSupport, runner_main
 from athome.lib.lineprotocol import LineProtocol
 
 LOGGER = logging.getLogger(__name__)
 
-class Runner(RunnerSupport):
+class HbmqttRunner(RunnerSupport):
     """Hbmqtt broker runner"""
 
     def __init__(self, config):
@@ -32,29 +32,6 @@ class Runner(RunnerSupport):
         self.broker = None
 
 
-def main():
-    logging.basicConfig(level=logging.DEBUG)
-    os.setpgid(os.getpid(), os.getpid())
-
-    loop = asyncio.get_event_loop()
-    loop.set_debug(False)
-    runner = Runner(json.loads(sys.argv[1]))
-    task = asyncio.ensure_future(runner.run())
-    loop.run_until_complete(task)
-
-    tasks = asyncio.Task.all_tasks()
-    if tasks:
-        for task in tasks:
-            task.cancel()
-        gather_task = asyncio.gather(*tasks, 
-            loop=loop, 
-            return_exceptions=True
-        )
-        loop.run_until_complete(gather_task)
-
-    loop.close()
-    sys.exit(0)
-
-
 if __name__ == '__main__':
-    main()
+    runner = HbmqttRunner(json.loads(sys.argv[1]))
+    runner_main(runner, True)

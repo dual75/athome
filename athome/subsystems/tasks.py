@@ -16,7 +16,7 @@ class Subsystem(ProcSubsystem):
     """Subprocess subsystem"""
 
     def __init__(self, name):
-        super().__init__(name, 'athome.lib.pluginrunner')
+        super().__init__(name, 'athome.lib.taskrunner')
 
     def on_initialize(self):
         super().on_initialize()

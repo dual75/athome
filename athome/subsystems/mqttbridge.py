@@ -10,7 +10,7 @@ import zlib
 from transitions import Machine
 from hbmqtt.client import ClientException, ConnectException, MQTTClient
 
-from athome import EVT_MESSAGE
+from athome import MESSAGE_EVT
 from athome.core import Core
 from athome.subsystem import SubsystemModule
 from athome.lib.management import ManagedObject
@@ -213,9 +213,9 @@ class Subsystem(SubsystemModule):
         self.core = Core()
 
     async def on_message(self, msg):
-        LOGGER.debug('hbmqttbridge msg handler: %s', evt)
+        LOGGER.debug('hbmqttbridge msg handler: %s', msg)
         if not self.is_failed():
-            if msg.type == EVT_MESSAGE:
+            if msg.type == MESSAGE_EVT:
                 if msg.value == 'hbmqtt_started':
                     self.start()
                 elif msg.value == 'hbmqtt_stopping':
