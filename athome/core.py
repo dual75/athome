@@ -62,7 +62,7 @@ class Core(SystemModule):
         self.start()
         self.emit('athome_starting')
         self.await_task = asyncio.ensure_future(
-            self._await_consumer(),
+            self._await_loop(),
             loop=self.loop
         )
         single_task = asyncio.gather(
@@ -86,7 +86,7 @@ class Core(SystemModule):
 
         LOGGER.info('core.run() coro exiting')
 
-    async def _await_consumer(self):
+    async def _await_loop(self):
         with contextlib.suppress(asyncio.CancelledError):
             while self.is_running() or not self.await_queue.empty():
                 LOGGER.debug('awaiting for task')

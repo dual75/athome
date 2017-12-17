@@ -260,15 +260,19 @@ class Subsystem(SubsystemModule):
         except ClientException as ex:
             LOGGER.error("Client exception: %s", ex)
 
+    def after_started(self):
+        self.core.emit('mqttbridge_started')
+
     def on_stop(self):
         """On subsystem stop shutdown broker"""
 
         if self.republishers:
-            for republisher in [r for r in self.republishers if not r.is_failed()]:
+            for republisher in [r for r 
+                    in self.republishers if not r.is_failed()]:
                 republisher.stop()
             self.republishers = None
     
-    def after_stop(self):
+    def after_stopped(self):
         self.core.emit('mqttbridge_stopped')
 
     def on_shutdown(self):
@@ -283,9 +287,3 @@ class Subsystem(SubsystemModule):
         for republisher in self.republishers:
             LOGGER.debug('forward to %s', republisher.url)
             await republisher.forward(message)
-
-    def on_fail(self):
-        """on_fail placeholder"""
-
-        if self.is_running():
-            self.on_stop()

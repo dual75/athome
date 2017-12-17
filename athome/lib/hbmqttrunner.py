@@ -15,13 +15,13 @@ from athome.lib.lineprotocol import LineProtocol
 
 LOGGER = logging.getLogger(__name__)
 
+
 class HbmqttRunner(RunnerSupport):
     """Hbmqtt broker runner"""
 
-    def __init__(self, config):
+    def __init__(self):
         super().__init__()
         self.broker = None
-        self.config = config
        
     async def start_task(self):
         self.broker = Broker(self.config)
@@ -33,5 +33,5 @@ class HbmqttRunner(RunnerSupport):
 
 
 if __name__ == '__main__':
-    runner = HbmqttRunner(json.loads(sys.argv[1]))
+    runner = HbmqttRunner()
     runner_main(runner, True)

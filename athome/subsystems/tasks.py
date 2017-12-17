@@ -2,8 +2,6 @@
 #
 # See the file LICENCE for copying permission.
 
-import os
-import sys
 import logging
 
 from athome.lib.procsubsystem import ProcSubsystem
@@ -17,11 +15,4 @@ class Subsystem(ProcSubsystem):
 
     def __init__(self, name):
         super().__init__(name, 'athome.lib.taskrunner')
-
-    def on_initialize(self):
-        super().on_initialize()
-        self.params = [ 
-            self.config['plugins_dir'], 
-            str(self.config['plugin_poll_interval'])
-            ]
 

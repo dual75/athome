@@ -40,8 +40,8 @@ subsystem:
     tasks:
         enable: true
         config:
-            plugins_dir: 'plugindir'
-            plugin_poll_interval: 3
+            tasks_dir: 'plugindir'
+            poll_interval: 3
 
     http:
         enable: false
@@ -93,7 +93,7 @@ logging:
             level: 'DEBUG'
             handlers: ['console_handler']
         hbmqtt: 
-            level: 'DEBUG'
+            level: 'WARNING'
             handlers: ['console_handler']
 
 

@@ -11,16 +11,29 @@ LOGGER = logging.getLogger(__name__)
 
 g_mute = None
 g_volume = None
+g_app = None
+
+tv = WebOsClient(WEBOSTV_IP)
 
 async def task_poll(loop):
-    global g_mute, g_volume
+    while True:
+        try:
+            channel = await tv.get_current_channel()
+            await perform_poll(loop)
+        except OSError:
+            LOGGER.exception('Error connecting to tv')
+            await asyncio.sleep(300)
+
+async def perform_poll(loop):
+    global g_mute, g_volume, g_app
     try:
         async with mqtt.local_client(True) as mqtt_client: 
             while True:
-                tv = WebOsClient(WEBOSTV_IP)
+                
 
                 muted = await tv.get_muted()
                 volume = await tv.get_volume()
+                app = await tv.get_current_app()
 
                 if mqtt_client.session:
                     # handle mute
@@ -47,6 +60,19 @@ async def task_poll(loop):
                     await mqtt_client.publish(
                         '%s/volume' % TV_TOPIC, 
                         '%d' % (volume)
+                    )
+
+                    # handle current app
+                    if not g_app or g_app != app:
+                        LOGGER.debug('Update app to extern')
+                        g_app = app
+                        await mqtt_client.publish(
+                            'extern/%s/app' % TV_TOPIC, 
+                            '%d' % (volume)
+                        )
+                    await mqtt_client.publish(
+                        '%s/app' % TV_TOPIC, 
+                        '%d' % (app)
                     )
 
                 await asyncio.sleep(5)
