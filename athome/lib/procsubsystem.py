@@ -33,7 +33,7 @@ class ProcSubsystem(SubsystemModule):
     def on_stop(self):
         """On 'stop' event callback method"""
 
-        self.core.faf(self.send_line(COMMAND_STOP))
+        self.executor.execute(self.send_line(COMMAND_STOP))
 
     async def run(self):
         """Subsystem activity method

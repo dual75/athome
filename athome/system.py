@@ -7,6 +7,8 @@ import logging
 
 from transitions import Machine
 
+from athome.lib.jobs import Executor
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -91,6 +93,7 @@ class SystemModule():
         self.loop = None
         self.config = None
         self.run_task = None
+        self.executor = Executor(self.loop)
         self.message_queue = asyncio.Queue()
 
     def _on_initialize(self, loop, config):
@@ -137,8 +140,8 @@ class SystemModule():
 
     def _on_stop(self):
         """Before 'stop' callback"""
-
         self.on_stop()
+        self.executor.close()
 
     def on_stop(self):
         """Perform module stop activities, mandatory"""
@@ -148,6 +151,7 @@ class SystemModule():
     def _after_stopped(self):
         """After 'stop' callback"""
 
+        self.executor.close()
         self.after_stopped()
 
     def after_stopped(self):

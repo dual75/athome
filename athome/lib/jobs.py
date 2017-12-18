@@ -71,11 +71,27 @@ class Job:
         with atimeout(timeout):
             await self.run_task
 
-    
     def close(self):
         if not self.run_task.done():
             self.run_task.cancel()
         self.executor.discard(self)
+
+    def done(self):
+        return self.run_task.done()
+
+    def result(self):
+        return self.run_task.result()
+
+    def exception(self):
+        return self.run_task.exception()
+
+    @property
+    def callback(self):
+        return self._callback
+
+    @property
+    def error_callback(self):
+        return self._error_callback
 
 
 class Executor:
@@ -126,7 +142,6 @@ class Executor:
             self._exception_task,
             loop=self.loop
         )
-
 
 async def test():
     await asyncio.sleep(2)

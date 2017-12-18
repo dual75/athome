@@ -14,6 +14,7 @@ from athome import MESSAGE_EVT
 from athome.core import Core
 from athome.subsystem import SubsystemModule
 from athome.lib.management import ManagedObject
+from athome.lib.jobs import Executor
 
 LOGGER = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ class Republisher():
         self.listen_task = None
         self.publish_set = set()
         self.publish_stamps = dict()
+        self.executor = Executor(self.bridge.core.loop)
 
     def _on_start(self):
         """Start this republisher
@@ -89,9 +91,7 @@ class Republisher():
         """
 
         if self.listen_task:
-            if not self.listen_task.done():
-                self.listen_task.cancel()
-            Core().await_queue.put_nowait(self.listen_task)
+            self.listen_task.close()
             self.listen_task = None
 
         # if listen didn't exit on CancelledError we try
@@ -100,7 +100,7 @@ class Republisher():
             async def disconnect_coro():
                 await self.client.disconnect()
                 self.client = None
-            self.bridge.core.faf(disconnect_coro())
+            self.executor.execute(disconnect_coro())
 
     def _after_stop(self):
         LOGGER.info('republisher for %s closed', self.url)

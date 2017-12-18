@@ -143,7 +143,7 @@ class Subsystem(SubsystemModule):
             self.core.emit('http_stopping')
             await self.app.shutdown()
             self.core.emit('http_stopped')
-        self.core.faf(stop_server())
+        self.executor.execute(stop_server())
 
     @managed
     def greet(self, value):

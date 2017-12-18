@@ -2,4 +2,4 @@
 #
 # See the file LICENCE for copying permission.
 
-__all__ = ['locator', 'management', 'pluginrunner', 'atprotocol']
+__all__ = ['locator', 'management', 'pluginrunner', 'atprotocol', 'executor']

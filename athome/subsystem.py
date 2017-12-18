@@ -8,6 +8,7 @@ import contextlib
 
 from athome import MESSAGE_EVT
 from athome.system import SystemModule
+from athome.lib.jobs import Executor
 from athome.core import Core
 
 LOGGER = logging.getLogger(__name__)
@@ -24,15 +25,12 @@ class SubsystemModule(SystemModule):
         """Before 'initialize' callback"""
 
         super()._on_initialize(loop, config)
-        self.message_task = asyncio.ensure_future(self._message_cycle(), 
-                                                loop=self.core.loop)
+        self.executor.execute(self._message_cycle())
 
     async def _message_cycle(self):
-        with contextlib.suppress(asyncio.CancelledError):
-            # messages are being processed as long as Subsystem is not 'closed'
-            while not self.is_closed():
-                message = await self.message_queue.get()
-                await self.on_message(message)
+        while not self.is_closed():
+            message = await self.message_queue.get()
+            await self.on_message(message)
 
     async def on_message(self, msg):
         LOGGER.debug('subsystem %s got msg %s', self.name, msg)
@@ -46,6 +44,5 @@ class SubsystemModule(SystemModule):
                     self.shutdown()
 
     def on_shutdown(self):
-        self.message_task.cancel()
-        self.core.await_queue.put_nowait(self.message_task)
+        self.executor.close()
 
