@@ -37,13 +37,15 @@ class Job:
                         self._callback(future.result())
                     except Exception as ex:
                         exc = ex
+                        self._traceback_stack = ex.__traceback__
             elif self._error_callback:
                 try:
                     self._traceback_stack = self._current_stack()
                     self._error_callback(exc)
                     exc = None
                 except Exception as ex:
-                    exc = ex
+                    exc = ext
+                    self._traceback_stack = ex.__traceback__
             if exc:
                 self._handle_exception(exc)
         except asyncio.CancelledError:
@@ -60,7 +62,7 @@ class Job:
                 'future': self.run_task
         }
         if self.executor.loop.get_debug():
-            exception_ctx['stack'] = self._traceback_stack
+            exception_ctx['traceback'] = self._traceback_stack
         if self._waited:
             self.executor._handle_exception(exception_ctx)
         else:
@@ -129,7 +131,7 @@ class Executor:
                     or self.loop.get_exception_handler()\
                     or self.loop.default_exception_handler
         if self.loop.get_debug():
-            tbs = traceback.format_list(ctx['stack'])
+            tbs = traceback.format_list(ctx['traceback'])
             sys.stderr.write(''.join(tbs))
         handler(ctx)
 
@@ -145,21 +147,22 @@ class Executor:
 
 async def test():
     await asyncio.sleep(2)
-    await asyncio.sleep(1/0)
+
 
 def done(future):
+    a = 1 / 0
     print(future)
 
 
 async def main():
     executor = Executor()
-    job = executor.execute(test())
+    job = executor.execute(test(), done)
     await asyncio.sleep(1)
     await executor.close()
-
+    
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     loop = asyncio.get_event_loop()
-    loop.set_debug(False)
+    loop.set_debug(True)
     asyncio.get_event_loop().run_until_complete(main())
