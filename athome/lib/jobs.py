@@ -36,16 +36,18 @@ class Job:
                         self._traceback_stack = self._current_stack()
                         self._callback(future.result())
                     except Exception as ex:
+                        LOGGER.warning('caught exception in done callback')
                         exc = ex
-                        self._traceback_stack = ex.__traceback__
+                        self._traceback_stack = traceback.extract_tb(sys.exc_info()[2])
             elif self._error_callback:
                 try:
                     self._traceback_stack = self._current_stack()
                     self._error_callback(exc)
                     exc = None
                 except Exception as ex:
-                    exc = ext
-                    self._traceback_stack = ex.__traceback__
+                    LOGGER.warning('caught exception in error callback')
+                    exc = ex
+                    self._traceback_stack = traceback.extract_tb(sys.exc_info()[2])
             if exc:
                 self._handle_exception(exc)
         except asyncio.CancelledError:
@@ -130,7 +132,9 @@ class Executor:
         handler = self.exception_handler\
                     or self.loop.get_exception_handler()\
                     or self.loop.default_exception_handler
+        LOGGER.debug('_handle_exception, handler is %s', handler)
         if self.loop.get_debug():
+            LOGGER.debug('writing out traceback: %s', ctx['traceback'])
             tbs = traceback.format_list(ctx['traceback'])
             sys.stderr.write(''.join(tbs))
         handler(ctx)
@@ -146,7 +150,7 @@ class Executor:
         )
 
 async def test():
-    await asyncio.sleep(2)
+    print('cisono')
 
 
 def done(future):
@@ -162,7 +166,7 @@ async def main():
     
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     loop = asyncio.get_event_loop()
-    loop.set_debug(True)
+    loop.set_debug(False)
     asyncio.get_event_loop().run_until_complete(main())
