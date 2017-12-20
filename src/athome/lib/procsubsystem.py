@@ -30,8 +30,16 @@ class ProcSubsystem(SubsystemModule):
         self.module = module
         self.params = params
 
+    def on_start(self):
+        self.executor.execute(self.run())
+
     def on_stop(self):
         """On 'stop' event callback method"""
+
+        self.executor.execute(self.send_line(COMMAND_STOP))
+
+    def on_shutdown(self):
+        """On 'shutdown' event callback method"""
 
         self.executor.execute(self.send_line(COMMAND_STOP))
 
@@ -71,7 +79,8 @@ class ProcSubsystem(SubsystemModule):
                         running = False
             await self.proc.wait()
             self.proc = None
-            self.stopped()
+            if not self.is_closed():
+                self.stopped()
         except Exception as ex:
             LOGGER.exception('Exception occurred in run() coro')
             if self.proc:

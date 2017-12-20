@@ -220,9 +220,8 @@ class Subsystem(SubsystemModule):
         except ClientException as ex:
             LOGGER.error("Client exception: %s", ex)
 
-    '''
     async def on_message(self, msg):
-        LOGGER.debug('hbmqttbridge msg handler: %s', msg)
+        LOGGER.debug('mqttbridge msg handler: %s', msg)
         if not self.is_failed():
             if msg.type == MESSAGE_EVT:
                 if msg.value == 'hbmqtt_started':
@@ -231,7 +230,6 @@ class Subsystem(SubsystemModule):
                     self.stop()
                 elif msg.value == 'athome_shutdown':
                     self.shutdown()
-    '''
 
     @staticmethod
     def _compose_url(broker):

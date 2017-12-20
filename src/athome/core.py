@@ -10,12 +10,14 @@ from athome import Message,\
     MESSAGE_EVT,\
     MESSAGE_START,\
     MESSAGE_STOP,\
+    MESSAGE_NONE,\
     MESSAGE_SHUTDOWN
 from athome.system import SystemModule
 
 SHUTDOWN_TIMEOUT = 2
 
 LOGGER = logging.getLogger(__name__)
+
 
 class Core(SystemModule):
     """Core system module"""
@@ -63,46 +65,49 @@ class Core(SystemModule):
         module_name, class_name = class_name.rsplit('.', 1)
         module = importlib.import_module(module_name)
         class_ = getattr(module, class_name)
-
         from athome.subsystem import SubsystemModule
         assert issubclass(class_, SubsystemModule)
         return class_
 
-
     async def run_forever(self):
         """Execute run coroutine until stopped"""
+        
+        self.start()
         await self.message_job
-    
 
     async def message_cycle(self):
-        self.start()
-        await self._propagate_message(Message(MESSAGE_EVT, 'athome_starting'))
-        self.started()
-        message = Message(MESSAGE_START, None)
+        message = Message(MESSAGE_NONE, None)
         while message.type != MESSAGE_SHUTDOWN:
             message = await self.message_queue.get()
-            if message.type == MESSAGE_EVT:
+            if message.type == MESSAGE_START:
+                self.started()
+            elif message.type == MESSAGE_STOP:
+                self.stopped()
+            elif message.type == MESSAGE_EVT:
                 await self._propagate_message(message)
-        await self._propagate_message(Message(MESSAGE_EVT, 'athome_stopped'))
+        await self._propagate_message(Message(MESSAGE_EVT, 'athome_shutdown'))
         await asyncio.sleep(SHUTDOWN_TIMEOUT, loop=self.loop)
 
     async def _propagate_message(self, evt):
         for subsystem in self._subsystems.values():
             await subsystem.message_queue.put(evt)
 
+    def on_start(self):
+        self.emit('athome_starting')
+
     def after_started(self):
         self.emit('athome_started')
 
-    def _on_stop(self):
+    def on_stop(self):
         self.emit('athome_stopping')
+
+    def after_stopped(self):
+        self.emit('athome_stopped')
 
     def emit(self, evt):
         """Propagate event 'evt' to _subsystems"""
 
         self.message_queue.put_nowait(Message(MESSAGE_EVT, evt))
-    
-    def on_shutdown(self):
-        self.message_queue.put_nowait(Message(MESSAGE_SHUTDOWN, None))
 
     @property
     def subsystems(self):

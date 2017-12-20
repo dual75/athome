@@ -9,6 +9,13 @@ from transitions import Machine
 
 from athome.lib.jobs import Executor
 
+from athome import Message,\
+    MESSAGE_EVT,\
+    MESSAGE_START,\
+    MESSAGE_STOP,\
+    MESSAGE_NONE,\
+    MESSAGE_SHUTDOWN
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -95,7 +102,12 @@ class SystemModule():
         self.config = None
         self.executor = Executor(self.loop)
         self.message_queue = asyncio.Queue()
-        self.message_job = asyncio.ensure_future(self.message_cycle(), loop=self.loop)
+        self.message_job = asyncio.ensure_future(self._wrap_message_cycle(), loop=self.loop)
+
+    async def _wrap_message_cycle(self):
+        await self.message_cycle()
+        await self.executor.close()
+        self.shutdown()
 
     def _on_initialize(self, loop, env, config):
         """Before 'initialize' callback"""
@@ -118,6 +130,7 @@ class SystemModule():
         """Before 'start' callback"""
 
         self.on_start()
+        self.message_queue.put_nowait(Message(MESSAGE_START, None))
 
     def on_start(self):
         """Mandatory on_start method"""
@@ -142,6 +155,7 @@ class SystemModule():
     def _on_stop(self):
         """Before 'stop' callback"""
         self.on_stop()
+        self.message_queue.put_nowait(Message(MESSAGE_STOP, None))
 
     def on_stop(self):
         """Perform module stop activities, mandatory"""
@@ -162,6 +176,7 @@ class SystemModule():
         """Before 'shutdown' callback"""
 
         LOGGER.debug('shutting down %s', __name__)
+        self.message_queue.put_nowait(Message(MESSAGE_SHUTDOWN, None))
         try:
             self.on_shutdown()
         except:
@@ -169,9 +184,9 @@ class SystemModule():
 
 
     def on_shutdown(self):
-        """on_shutdown mandatory method"""
+        """on_shutdown placeholder"""
 
-        raise NotImplementedError
+        pass
 
     def _on_fail(self):
         """Before 'fail' callback"""

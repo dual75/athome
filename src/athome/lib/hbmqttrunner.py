@@ -20,7 +20,7 @@ class HbmqttRunner(RunnerSupport):
     """Hbmqtt broker runner"""
 
     def __init__(self):
-        super().__init__()
+        super().__init__('hbmqtt')
         self.broker = None
        
     async def start_task(self):

@@ -39,8 +39,3 @@ class SubsystemModule(SystemModule):
     
     def emit(self, evt):
         self.core.emit(evt)
-    
-    def on_shutdown(self):
-        self.message_queue.put_nowait(Message(MESSAGE_SHUTDOWN, None))
-        
-

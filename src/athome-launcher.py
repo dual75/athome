@@ -69,7 +69,7 @@ def init_files_windows(core_config):
 
 def init_files_linux(core_config):
     result = dict()
-    for parm, default in ('tmp_dir', tempfile.gettempdir()), ('run_dir', '/var/run'):
+    for parm, default in ('tmp_dir', tempfile.gettempdir()), ('run_dir', os.getcwd()):
         if core_config[parm] == 'auto':
             result[parm] = default
         else:
@@ -90,7 +90,7 @@ def ask_exit(signame, core):
     """
 
     LOGGER.info("got signal %s exit", signame)
-    core.stop()
+    core.shutdown()
 
 
 def install_signal_handlers(core):
@@ -139,14 +139,20 @@ async def main(loop, env, config):
         await core.run_forever()
         result = PROCESS_OUTCOME_OK
     except KeyboardInterrupt as ex:
-        core.stop()
         LOGGER.info("Caught CTRL-C")
         result = PROCESS_OUTCOME_OK
     except Exception as ex:
         LOGGER.exception(ex)
-    core.shutdown()
     return result
 
+def cleanup_tasks(loop):
+    tasks = asyncio.Task.all_tasks()
+    single = asyncio.gather(*tasks, loop=loop)
+    single.cancel()
+    try:
+        loop.run_until_complete(single)
+    except asyncio.CancelledError:
+        pass
 
 if WIN32:
     loop = asyncio.ProactorEventLoop()
@@ -156,9 +162,9 @@ args = parse_args()
 env, config = init_env(args.config)
 loop = asyncio.get_event_loop()
 loop.set_debug(config['asyncio']['debug'])
-
 main_task = asyncio.ensure_future(main(loop, env, config))
 result = loop.run_until_complete(main_task)
+cleanup_tasks(loop)
 loop.close()
 
 sys.exit(result)

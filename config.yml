@@ -4,7 +4,7 @@ env:
 
 subsystem:
     hbmqtt:
-        enable: false
+        enable: true
         class: 'athome.subsystems.hbmqtt.Subsystem'
         config:
             listeners:
@@ -19,7 +19,7 @@ subsystem:
                 allow-anonymous: true
 
     mqttbridge:
-        enable: true
+        enable: false
         class: 'athome.subsystems.mqttbridge.Subsystem'
         config:
             brokers:
@@ -44,7 +44,7 @@ subsystem:
                     ]
 
     tasks:
-        enable: true
+        enable: false
         class: 'athome.subsystems.tasks.Subsystem'
         config:
             tasks_dir: 'c:/Users/duca/athome-tasks/src'

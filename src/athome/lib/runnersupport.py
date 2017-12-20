@@ -94,13 +94,13 @@ class RunnerSupport:
 
     def _pid_file(self):
         return os.path.join(
-            self.env['actual_var_dir'], 
+            self.env['run_dir'], 
             '{}_subsystem.pid'.format(self.name)
         )
 
     def _write_pid_file(self):
         with open(self._pid_file(), 'w') as file_out:
-            file_out.write('{}'.format(os.getpid()).encode('utf-8'))
+            file_out.write('{}'.format(os.getpid()))
     
     def _remove_pid_file(self):
         os.unlink(self._pid_file())
