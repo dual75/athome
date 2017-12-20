@@ -6,11 +6,13 @@ import asyncio
 import importlib
 import logging
 
-from athome import Message, MESSAGE_EVT, \
-    MESSAGE_START, MESSAGE_STOP
+from athome import Message,\
+    MESSAGE_EVT,\
+    MESSAGE_START,\
+    MESSAGE_STOP
 from athome.system import SystemModule
 
-STOP_TIMEOUT = 5
+STOP_TIMEOUT = 2
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,34 +37,44 @@ class Core(SystemModule):
 
     def on_initialize(self):
         # Load _subsystems
+        
         subsystems = self.config['subsystem']
         for name in [name for name in subsystems
                      if subsystems[name]['enable']
                      ]:
-            LOGGER.debug('Loading module %s', name)
-            module_name = 'athome.subsystems.{}'.format(name)
+            module_class = subsystems[name]['class']
             try:
-                module = importlib.import_module(module_name)
-                subsystem_class = getattr(module, 'Subsystem')
+                subsystem_class = self._load_class(module_class)
                 subsystem = subsystem_class(name)
                 self._subsystems[name] = subsystem
                 subsystem.initialize(
                     self.loop, 
+                    self.env,
                     self.config['subsystem'][name]['config']
                 )
             except Exception as ex:
                 LOGGER.exception('Error in initialization')
                 raise ex
 
-    def run_forever(self):
+    @staticmethod
+    def _load_class(class_name):
+        assert '.' in class_name
+        module_name, class_name = class_name.rsplit('.', 1)
+        module = importlib.import_module(module_name)
+        class_ = getattr(module, class_name)
+
+        from athome.subsystem import SubsystemModule
+        assert issubclass(class_, SubsystemModule)
+        return class_
+
+    async def run_forever(self):
         """Execute run coroutine until stopped"""
 
         self.start()
-        self.emit('athome_starting')
-        self.loop.run_until_complete(self.run_task)
+        await asyncio.wait_for(self.message_task, loop=self.loop)
         self.stopped()
 
-    async def run(self):
+    async def message_cycle(self):
         self.started()
         message = Message(MESSAGE_START, None)
         while message.type != MESSAGE_STOP:
@@ -71,9 +83,6 @@ class Core(SystemModule):
                 await self._propagate_message(message)
         await self._propagate_message(Message(MESSAGE_EVT, 'athome_stopped'))
         await asyncio.sleep(STOP_TIMEOUT, loop=self.loop)
-        self.stopped()
-
-        LOGGER.info('core.run() coro exiting')
 
     async def _propagate_message(self, evt):
         for subsystem in self._subsystems.values():

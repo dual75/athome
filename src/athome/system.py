@@ -1,6 +1,6 @@
-    # Copyright (c) 2017 Alessandro Duca
-    #
-    # See the file LICENCE for copying permission.
+# Copyright (c) 2017 Alessandro Duca
+#
+# See the file LICENCE for copying permission.
 
 import asyncio
 import logging
@@ -16,91 +16,93 @@ class SystemModule():
     """Base class for all athome system modules"""
 
     states = [
+        'loaded',
+        'initializing',
+        'ready',
+        'starting',
+        'running',
+        'stopping',
+        'closed',
+        'failed'
+    ]
+
+    transitions = [
+        {
+            'trigger': 'initialize',
+            'source': 'loaded',
+            'dest': 'initializing',
+            'before': ['_on_initialize'],
+            'after': ['_after_initialize']
+        },
+        {
+            'trigger': 'initialized',
+            'source': 'initializing',
+            'dest': 'ready'
+        },
+        {
+            'trigger': 'start',
+            'source': 'ready',
+            'dest': 'starting',
+            'before': ['_on_start']
+        },
+        {
+            'trigger': 'started',
+            'source': 'starting',
+            'dest': 'running',
+            'after': ['_after_started'],
+        },
+        {
+            'trigger': 'stop',
+            'source': 'running',
+            'dest': 'stopping',
+            'before': ['_on_stop'],
+        },
+        {
+            'trigger': 'stopped',
+            'source': 'stopping',
+            'dest': 'ready',
+            'after': ['_after_stopped']
+        },
+        {
+            'trigger': 'shutdown',
+            'source': ['loaded', 'ready', 'running'],
+            'dest':'closed',
+            'before': ['_on_shutdown']
+        },
+        {
+            'trigger': 'fail',
+            'source': [
                 'loaded',
                 'initializing',
                 'ready',
                 'starting',
                 'running',
-                'stopping',
-                'closed',
-                'failed'
-              ]
-
-    transitions = [
-            {
-                'trigger':'initialize',
-                'source':'loaded',
-                'dest':'initializing',
-                'before': ['_on_initialize'],
-                'after': ['_after_initialize']
-                },
-            {
-                'trigger':'initialized',
-                'source':'initializing',
-                'dest':'ready'
-                },
-            {
-                'trigger':'start',
-                'source':'ready',
-                'dest':'starting',
-                'before': ['_on_start']
-                },
-            {
-                'trigger':'started',
-                'source':'starting',
-                'dest':'running',
-                'after': ['_after_started'],
-                },
-            {
-                'trigger':'stop',
-                'source':'running',
-                'dest':'stopping',
-                'before': ['_on_stop'],
-                },
-            {
-                'trigger':'stopped',
-                'source':'stopping',
-                'dest':'ready',
-                'after': ['_after_stopped']
-                },
-            {
-                'trigger':'shutdown',
-                'source':['loaded', 'ready', 'running'],
-                'dest':'closed',
-                'before': ['_on_shutdown']
-                },
-            {
-                'trigger':'fail',
-                'source':[
-                    'loaded', 
-                    'initializing', 
-                    'ready', 
-                    'starting',
-                    'running',
-                    'stopping'
-                ],
-                'dest':'failed',
-                'before': ['_on_fail']
-                }
-        ]
+                'stopping'
+            ],
+            'dest':'failed',
+            'before': ['_on_fail']
+        }
+    ]
 
     def __init__(self, name):
         self.name = name
         self.machine = Machine(model=self,
-                            states=SystemModule.states,
-                            transitions=SystemModule.transitions,
-                            initial='loaded')
+                               states=SystemModule.states,
+                               transitions=SystemModule.transitions,
+                               initial='loaded')
         self.loop = None
+        self.env = None
         self.config = None
-        self.run_task = None
         self.executor = Executor(self.loop)
         self.message_queue = asyncio.Queue()
+        self.message_task = None
 
-    def _on_initialize(self, loop, config):
+    def _on_initialize(self, loop, env, config):
         """Before 'initialize' callback"""
 
         LOGGER.debug("Initialize module %s", self.name)
         self.loop = loop
+        self.env = env
         self.config = config
         self.on_initialize()
 
@@ -121,7 +123,8 @@ class SystemModule():
         """Before 'start' callback"""
 
         self.on_start()
-        self.run_task = asyncio.ensure_future(self.run(), loop=self.loop)
+        self.message_task = asyncio.ensure_future(
+            self.message_cycle(), loop=self.loop)
 
     def on_start(self):
         """on_start placeholder"""
@@ -141,7 +144,6 @@ class SystemModule():
     def _on_stop(self):
         """Before 'stop' callback"""
         self.on_stop()
-        self.executor.close()
 
     def on_stop(self):
         """Perform module stop activities, mandatory"""
@@ -152,7 +154,6 @@ class SystemModule():
         """After 'stop' callback"""
 
         self.executor.close()
-        self.after_stopped()
 
     def after_stopped(self):
         """Perform module stop activities, mandatory"""
@@ -160,14 +161,15 @@ class SystemModule():
         raise NotImplementedError
 
     def _on_shutdown(self):
-        """Before 'shutdown' callback"""        
+        """Before 'shutdown' callback"""
 
         LOGGER.debug('shutting down %s', __name__)
         try:
             self.on_shutdown()
         except Exception as ex:
-            LOGGER.exception("Subsystem %s shutdown in error: %s", 
+            LOGGER.exception("Subsystem %s shutdown in error: %s",
                              self.name, ex)
+        self.executor.close()
 
     def on_shutdown(self):
         """on_shutdown placeholder"""
@@ -184,9 +186,3 @@ class SystemModule():
         """Before fail placeholder"""
 
         pass
-
-    @property
-    def status(self):
-        return self.state
-
-

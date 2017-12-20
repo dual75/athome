@@ -50,9 +50,13 @@ class ProcSubsystem(SubsystemModule):
                     loop=self.loop)
 
                 # initialize subprocess runner
+                message_config = {
+                    'env': self.env,
+                    'subsystem_config': self.config
+                }
                 await self.send_line('{} {}'.format(
                     COMMAND_CONFIG, 
-                    json.dumps(self.config)
+                    json.dumps(message_config)
                     )
                 )
 
@@ -82,10 +86,10 @@ class ProcSubsystem(SubsystemModule):
             raise ex
 
     def after_started(self):
-        self.core.emit('{}_started'.format(self.name))
+        self.emit('{}_started'.format(self.name))
 
     def after_stopped(self):
-        self.core.emit('{}_stopped'.format(self.name))
+        self.emit('{}_stopped'.format(self.name))
 
     async def send_line(self, payload):
         self.proc.stdin.write((payload + '\n').encode('utf-8'))

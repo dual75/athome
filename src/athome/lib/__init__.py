@@ -2,4 +2,15 @@
 #
 # See the file LICENCE for copying permission.
 
-__all__ = ['locator', 'management', 'pluginrunner', 'atprotocol', 'executor']
+__all__ = [
+    'locator', 
+    'management', 
+    'pluginrunner', 
+    'atprotocol', 
+    'executor', 
+    'lineprotocol',
+    'hbmqttrunner',
+    'jobs',
+    'procsubsystem',
+    'taskrunner'
+]

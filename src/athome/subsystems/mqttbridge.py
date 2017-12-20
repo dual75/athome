@@ -11,9 +11,7 @@ from transitions import Machine
 from hbmqtt.client import ClientException, ConnectException, MQTTClient
 
 from athome import MESSAGE_EVT
-from athome.core import Core
 from athome.subsystem import SubsystemModule
-from athome.lib.management import ManagedObject
 from athome.lib.jobs import Executor
 
 LOGGER = logging.getLogger(__name__)
@@ -63,7 +61,10 @@ class Republisher():
         self.listen_task = None
         self.publish_set = set()
         self.publish_stamps = dict()
-        self.executor = Executor(self.bridge.core.loop)
+        self.executor = Executor(loop=self.bridge.loop)
+
+    def _execute(self, coro):
+        self.executor.execute(coro)
 
     def _on_start(self):
         """Start this republisher
@@ -72,17 +73,11 @@ class Republisher():
 
         """
 
-        task_list = [
-            asyncio.ensure_future(self._listen(), loop=self.bridge.loop),
-        ]
+        self._execute(self._listen())
         if self.topics:
-            task_list.append(
-                asyncio.ensure_future(
-                    self._hash_cleanup(), loop=self.bridge.loop)
-            )
+            self._execute(self._hash_cleanup())
             self.forward = self._forward_topics
-        self.run_task = asyncio.gather(*task_list, loop=self.bridge.loop)
-        self.bridge.core.emit('republisher_started')
+        self.bridge.emit('republisher_started')
 
     def _on_stop(self):
         """Stop this Republisher
@@ -90,17 +85,7 @@ class Republisher():
 
         """
 
-        if self.listen_task:
-            self.listen_task.close()
-            self.listen_task = None
-
-        # if listen didn't exit on CancelledError we try
-        # to do anything to clean pending connections
-        if self.client:
-            async def disconnect_coro():
-                await self.client.disconnect()
-                self.client = None
-            self.executor.execute(disconnect_coro())
+        self.executor.close()
 
     def _after_stop(self):
         LOGGER.info('republisher for %s closed', self.url)
@@ -120,7 +105,7 @@ class Republisher():
                     await self.bridge.forward(message)
         except asyncio.CancelledError:
             # self.client its unlilke to be None but we check anyway
-            if self.client:
+            if self.client.session:
                 await self.client.disconnect()
                 self.client = None
             LOGGER.debug("republisher list_task for %s canceled", self.url)
@@ -133,7 +118,7 @@ class Republisher():
             self.fail(ex)
 
     def _on_fail(self, exception):
-        self.bridge.stop()
+        self.bridge.fail()
 
     async def _forward_topics(self, message):
         """Forward a message to connected broker
@@ -210,18 +195,6 @@ class Subsystem(SubsystemModule):
         self.republishers = []
         self.broker_infos = []
         self.topics = None
-        self.core = Core()
-
-    async def on_message(self, msg):
-        LOGGER.debug('hbmqttbridge msg handler: %s', msg)
-        if not self.is_failed():
-            if msg.type == MESSAGE_EVT:
-                if msg.value == 'hbmqtt_started':
-                    self.start()
-                elif msg.value == 'hbmqtt_stopping':
-                    self.stop()
-                elif msg.value == 'athome_shutdown':
-                    self.shutdown()
 
     def on_initialize(self):
         """Perform subsystem initialization"""
@@ -237,6 +210,26 @@ class Subsystem(SubsystemModule):
                 'topics': broker['topics'] if 'topics' in broker else None
             })
 
+    def on_start(self):
+        try:
+            for broker in self.broker_infos:
+                republisher = Republisher(self, broker)
+                republisher.start()
+                self.republishers.append(republisher)
+        except ClientException as ex:
+            LOGGER.error("Client exception: %s", ex)
+
+    async def on_message(self, msg):
+        LOGGER.debug('hbmqttbridge msg handler: %s', msg)
+        if not self.is_failed():
+            if msg.type == MESSAGE_EVT:
+                if msg.value == 'hbmqtt_started':
+                    self.start()
+                elif msg.value == 'hbmqtt_stopping':
+                    self.stop()
+                elif msg.value == 'athome_shutdown':
+                    self.shutdown()
+
     @staticmethod
     def _compose_url(broker):
         result = ["%s://" % broker['protocol']]
@@ -248,32 +241,20 @@ class Subsystem(SubsystemModule):
         result = "".join(result)
         return result
 
-    async def run(self):
-        """Perform bridging activity"""
-
-        try:
-            for broker in self.broker_infos:
-                republisher = Republisher(self, broker)
-                republisher.start()
-                self.republishers.append(republisher)
-            self.core.emit('mqttbridge_started')
-        except ClientException as ex:
-            LOGGER.error("Client exception: %s", ex)
-
     def after_started(self):
-        self.core.emit('mqttbridge_started')
+        self.emit('mqttbridge_started')
 
     def on_stop(self):
         """On subsystem stop shutdown broker"""
 
         if self.republishers:
-            for republisher in [r for r 
-                    in self.republishers if not r.is_failed()]:
+            for republisher in [r for r in self.republishers 
+                    if not r.is_failed()]:
                 republisher.stop()
             self.republishers = None
     
     def after_stopped(self):
-        self.core.emit('mqttbridge_stopped')
+        self.emit('mqttbridge_stopped')
 
     def on_shutdown(self):
         """On subsystem shutdown shutdown broker if existing"""

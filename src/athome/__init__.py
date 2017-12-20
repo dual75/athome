@@ -5,7 +5,11 @@
 __init__.py module for 'athome' package
 """
 
-__all__ = ['core', 'module']
+__all__ = [
+    'core',
+    'system',
+    'subsystem'
+]
 
 from collections import namedtuple
 
@@ -17,4 +21,3 @@ MESSAGE_LINE, \
 MESSAGE_NONE = range(6)
 
 Message = namedtuple('Message', ('type', 'value'))
-

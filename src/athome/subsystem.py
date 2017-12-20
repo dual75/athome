@@ -19,15 +19,8 @@ class SubsystemModule(SystemModule):
     def __init__(self, name):
         super().__init__(name)
         self.core = Core()
-        self.message_task = None
 
-    def _on_initialize(self, loop, config):
-        """Before 'initialize' callback"""
-
-        super()._on_initialize(loop, config)
-        self.executor.execute(self._message_cycle())
-
-    async def _message_cycle(self):
+    async def message_cycle(self):
         while not self.is_closed():
             message = await self.message_queue.get()
             await self.on_message(message)
@@ -42,7 +35,8 @@ class SubsystemModule(SystemModule):
                     self.stop()
                 elif msg.value == 'athome_shutdown':
                     self.shutdown()
-
-    def on_shutdown(self):
-        self.executor.close()
+    
+    def emit(self, evt):
+        self.core.emit(evt)
+        
 

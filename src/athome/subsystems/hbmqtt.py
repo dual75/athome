@@ -13,7 +13,5 @@ class Subsystem(ProcSubsystem):
     def __init__(self, name):
         super().__init__(name, 'athome.lib.hbmqttrunner')
 
-    def on_initialize(self):
-        self.params = [ json.dumps(self.config) ]
 
 

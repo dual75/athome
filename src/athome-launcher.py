@@ -13,21 +13,20 @@ import logging.handlers
 import os
 import signal
 import sys
+import tempfile
 from functools import partial
 
 import yaml
 
 from athome.core import Core
 
+PROCESS_OUTCOME_OK = 0
+PROCESS_OUTCOME_KO = -1
+
 DEFAULT_CONFIG = './config.yml'
 LOGGER = logging.getLogger(__name__)
 
-
-if sys.platform == 'win32':
-    loop = asyncio.ProactorEventLoop()
-    asyncio.set_event_loop(loop)
-LOOP = asyncio.get_event_loop()
-CORE = Core()
+WIN32 = sys.platform == 'win32'
 
 
 def init_env(config_file):
@@ -38,13 +37,52 @@ def init_env(config_file):
                                     format(config_file))
     if os.path.isdir(config_file):
         raise IsADirectoryError("{} is not a file".format(config_file))
+
+    if not os.access(config_file, os.R_OK):
+        raise FileNotFoundError("Configuration file {} not accessible".
+                                    format(config_file))
     config = yaml.safe_load(open(config_file, 'rb'))
     logconf = config['logging']
     logging.config.dictConfig(logconf)
-    return config
+    env = process_env(config['env'])
+    return env, config
 
 
-def ask_exit(signame):
+def process_env(core_config):
+    if WIN32:
+        result = init_files_windows(core_config)
+    else:
+        result = init_files_linux(core_config)
+    return result
+
+
+def init_files_windows(core_config):
+    result = dict()
+    for parm in 'tmp_dir', 'run_dir':
+        if core_config[parm] == 'auto':
+            result[parm] = tempfile.gettempdir()
+        else:
+            result[parm] = core_config[parm] 
+        assert validate_writeable_dir(result[parm])
+    return result
+
+
+def init_files_linux(core_config):
+    result = dict()
+    for parm, default in ('tmp_dir', tempfile.gettempdir()), ('run_dir', '/var/run'):
+        if core_config[parm] == 'auto':
+            result[parm] = default
+        else:
+            result[parm] = core_config[parm] 
+        assert validate_writeable_dir(result[parm])
+    return result
+        
+
+def validate_writeable_dir(dir_file):
+    return os.path.isdir(dir_file) and os.access(dir_file, os.R_OK | os.W_OK)
+
+
+def ask_exit(signame, core):
     """Handle interruptions via posix signals
 
     Parameters:
@@ -52,10 +90,10 @@ def ask_exit(signame):
     """
 
     LOGGER.info("got signal %s exit", signame)
-    CORE.stop()
+    core.stop()
 
 
-def install_signal_handlers():
+def install_signal_handlers(core):
     """Install signal handlers for SIGINT and SIGTERM
 
     """
@@ -63,51 +101,64 @@ def install_signal_handlers():
     signames = ('SIGINT', 'SIGTERM')
     if sys.platform != 'win32':
         for signame in signames:
-            LOOP.add_signal_handler(getattr(signal, signame),
-                                    partial(ask_exit, signame))
+            loop.add_signal_handler(getattr(signal, signame),
+                                    partial(ask_exit, signame, core))
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser(
         description='Manage @home server', prog='engine')
     parser.add_argument('-d', '--detach', action='store_true',
                         help='Run in background')
-    parser.add_argument('-c', '--config', action='store_true',
+    parser.add_argument('-c', '--config', action='store',
                         help='Specify configuration file',
                         default=DEFAULT_CONFIG)
     parser.add_argument('-v', '--verbosity',
                         action='store_true', help='Turn on verbosity')
-    args = parser.parse_args()
-    config = init_env(args.config)
-    LOOP.set_debug(config['asyncio']['debug'])
-    if args.detach:
-        pid = os.fork()
-        if pid == -1:
-            LOGGER.error('fork error')
-            sys.exit(-1)
-        elif pid != 0:
-            sys.exit(0)
-        else:
-            os.setsid()
-            os.umask(0)
+    return parser.parse_args()
 
-    install_signal_handlers()
+
+def do_fork():
+    pid = os.fork()
+    if pid == -1:
+        LOGGER.error('fork error')
+        sys.exit(-1)
+    elif pid != 0:
+        sys.exit(0)
+    else:
+        os.setsid()
+        os.umask(0)
+
+
+async def main(loop, env, config):
+    core = Core()
+    core.initialize(loop, env, config)
+    install_signal_handlers(core)
+    result = PROCESS_OUTCOME_KO
     try:
-        CORE.initialize(LOOP, config)
-        CORE.run_forever()
-        result = 0
+        await core.run_forever()
+        result = PROCESS_OUTCOME_OK
     except KeyboardInterrupt as ex:
-        CORE.stop()
+        core.stop()
         LOGGER.info("Caught CTRL-C")
-        result = 0
+        result = PROCESS_OUTCOME_OK
     except Exception as ex:
         LOGGER.exception(ex)
-        result = -1
-    CORE.shutdown()
+    core.shutdown()
+    return result
 
-    sys.exit(result)
 
-    
-if __name__ == '__main__':
-    main()
+if WIN32:
+    loop = asyncio.ProactorEventLoop()
+    asyncio.set_event_loop(loop)
 
+args = parse_args()
+env, config = init_env(args.config)
+loop = asyncio.get_event_loop()
+loop.set_debug(config['asyncio']['debug'])
+
+main_task = asyncio.ensure_future(main(loop, env, config))
+result = loop.run_until_complete(main_task)
+loop.close()
+
+sys.exit(result)

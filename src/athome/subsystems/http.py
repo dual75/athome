@@ -3,17 +3,17 @@
 # See the file LICENCE for copying permission.
 
 
-import logging
-
 import json
+import logging
+from functools import partial
 
 import aiohttp
 from aiohttp import web
 
-from athome.subsystem import SubsystemModule
 from athome.core import Core
-from athome.lib.management import managed, ManagedObject
 from athome.lib.locator import Cache, NameError
+from athome.lib.management import ManagedObject, managed
+from athome.subsystem import SubsystemModule
 
 LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class Subsystem(SubsystemModule):
         self.app.router.add_route('POST', '/subsystem/{name}/{method}', 
             post_subsystem_handler)
 
-    async def run(self):
+    async def on_start(self):
         """Start broker"""
 
         LOGGER.debug('starting http server')
@@ -134,16 +134,17 @@ class Subsystem(SubsystemModule):
                                            self.config['addr'],
                                            self.config['port']
                                            )
-        self.core.emit('http_started')
+    
+    def after_started(self):
+        self.emit('http_started')
 
     def on_stop(self):
         """Shut down aiohttp application"""
 
         async def stop_server():
-            self.core.emit('http_stopping')
+            self.emit('http_stopping')
             await self.app.shutdown()
-            self.core.emit('http_stopped')
-        self.executor.execute(stop_server())
+        self.executor.execute(stop_server(), partial(self.emit, 'http_stopped'))
 
     @managed
     def greet(self, value):

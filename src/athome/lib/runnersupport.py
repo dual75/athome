@@ -25,18 +25,19 @@ LOGGER = logging.getLogger(__name__)
 
 class RunnerSupport:
 
-    def __init__(self, loop=None):
-        self.events = asyncio.Queue()
-        self.tasks = asyncio.Queue()
+    def __init__(self, name, loop=None):
+        self.name = name
+        self.loop = loop or asyncio.get_event_loop()
+        self.messages = asyncio.Queue()
         self.pipe_stream = None
         self.line_protocol = None
-        self.loop = loop or asyncio.get_event_loop()
         self.run_task = None
+        self.env = None
         self.config = None
         self.running = False
         
     def pipe_in(self, line):
-        self.events.put_nowait(Message(MESSAGE_LINE, line))
+        self.messages.put_nowait(Message(MESSAGE_LINE, line))
 
     def pipe_out(self, str_):
         self.pipe_stream.write(str_.encode('utf-8'))
@@ -60,12 +61,11 @@ class RunnerSupport:
         raise NotImplementedError
         
     async def _event_loop(self):
-        while self.running or not self.events.empty():
-            msg = await self.events.get()            
+        while self.running or not self.messages.empty():
+            msg = await self.messages.get()            
             if msg.type == MESSAGE_LINE:
                 LOGGER.debug('got line %s', msg.value)
-                command, arg = self.parse_line(msg.value)
-
+                command, arg = self._parse_line(msg.value)
                 if command == COMMAND_START:
                     self.run_task = asyncio.ensure_future(
                         self.start_task(), 
@@ -74,24 +74,39 @@ class RunnerSupport:
                     self.pipe_out(LINE_STARTED)
                 elif command == COMMAND_STOP:
                     self.running = False
-                    await self.tasks.put(None)
                 elif command == COMMAND_CONFIG:
-                    self.config = arg
+                    self.env = arg['env']
+                    self.config = arg['subsystem_config']
+                    self._write_pid_file()
                 else:
                     await self.on_command(command, arg)
         await self.stop_task()
         self.pipe_out(LINE_EXITED)
+        self._remove_pid_file()
 
     async def on_command(self, command, arg):
         pass
 
     @staticmethod
-    def parse_line(line):
+    def _parse_line(line):
         command, arg, chunks = line[:-1], None, line[:-1].split(' ', 1)
         if len(chunks) > 1:
             command, args = chunks[0], chunks[1]
             arg = json.loads(args)
         return command, arg
+
+    def _pid_file(self):
+        return os.path.join(
+            self.env['actual_var_dir'], 
+            '{}_subsystem.pid'.format(self.name)
+        )
+
+    def _write_pid_file(self):
+        with open(self._pid_file(), 'w') as file_out:
+            file_out.write('{}'.format(os.getpid()).encode('utf-8'))
+    
+    def _remove_pid_file(self):
+        os.unlink(self._pid_file())
 
 
 def runner_main(runner, debug=False):
@@ -103,15 +118,6 @@ def runner_main(runner, debug=False):
     task = asyncio.ensure_future(runner.run())
     try:
         loop.run_until_complete(task)
-        tasks = asyncio.Task.all_tasks()
-        if tasks:
-            for task in tasks:
-                task.cancel()
-            gather_task = asyncio.gather(*tasks, 
-                loop=loop, 
-                return_exceptions=True
-            )
-        loop.run_until_complete(gather_task)
         loop.close()
     except:
         LOGGER.exception('Error in runner')
