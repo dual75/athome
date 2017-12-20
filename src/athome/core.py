@@ -85,7 +85,8 @@ class Core(SystemModule):
                 self.stopped()
             elif message.type == MESSAGE_EVT:
                 await self._propagate_message(message)
-        await self._propagate_message(Message(MESSAGE_EVT, 'athome_shutdown'))
+            elif message.type == MESSAGE_SHUTDOWN:
+                self.shutdown()
         await asyncio.sleep(SHUTDOWN_TIMEOUT, loop=self.loop)
 
     async def _propagate_message(self, evt):
@@ -103,6 +104,9 @@ class Core(SystemModule):
 
     def after_stopped(self):
         self.emit('athome_stopped')
+
+    def on_shutdown(self):
+        self.emit('athome_shutdown')
 
     def emit(self, evt):
         """Propagate event 'evt' to _subsystems"""
