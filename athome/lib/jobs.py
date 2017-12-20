@@ -35,18 +35,18 @@ class Job:
                     try:
                         self._traceback_stack = self._current_stack()
                         self._callback(future.result())
-                    except Exception as ex:
+                    except Exception as e:
                         LOGGER.warning('caught exception in done callback')
-                        exc = ex
+                        exc = e
                         self._traceback_stack = traceback.extract_tb(sys.exc_info()[2])
             elif self._error_callback:
                 try:
                     self._traceback_stack = self._current_stack()
                     self._error_callback(exc)
                     exc = None
-                except Exception as ex:
+                except Exception as e:
                     LOGGER.warning('caught exception in error callback')
-                    exc = ex
+                    exc = e
                     self._traceback_stack = traceback.extract_tb(sys.exc_info()[2])
             if exc:
                 self._handle_exception(exc)
