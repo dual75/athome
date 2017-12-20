@@ -20,9 +20,7 @@ class ManagedObject:
         self._read_properties = set()
         self._write_properties = set()
         self._methods = dict()
-        props = inspect.getmembers(self._managed_class, 
-                                   lambda m: isinstance(m, property)
-                                  )
+        props = inspect.getmembers(self._managed_class, lambda m: isinstance(m, property))
         for name, prop in props:
             if prop.fget:
                 self._read_properties.add(name)
@@ -94,8 +92,6 @@ class A():
     @x.deleter
     def x(self):
         del self._val
-
-
 
 if __name__ == '__main__':
     a = A()

@@ -85,7 +85,7 @@ class Republisher():
 
         """
 
-        self.executor.close()
+        pass
 
     def _after_stop(self):
         LOGGER.info('republisher for %s closed', self.url)
@@ -116,6 +116,7 @@ class Republisher():
             LOGGER.exception('exception for %s in error, stopping bridge', 
                              self.url)
             self.fail(ex)
+        await self.excutor.close()
 
     def _on_fail(self, exception):
         self.bridge.fail()
@@ -219,6 +220,7 @@ class Subsystem(SubsystemModule):
         except ClientException as ex:
             LOGGER.error("Client exception: %s", ex)
 
+    '''
     async def on_message(self, msg):
         LOGGER.debug('hbmqttbridge msg handler: %s', msg)
         if not self.is_failed():
@@ -229,6 +231,7 @@ class Subsystem(SubsystemModule):
                     self.stop()
                 elif msg.value == 'athome_shutdown':
                     self.shutdown()
+    '''
 
     @staticmethod
     def _compose_url(broker):

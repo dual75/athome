@@ -1,12 +1,7 @@
-import sys
-
 import asyncio
-import traceback
 import logging
-
-from collections import deque
-from functools import partial
-from contextlib import suppress
+import sys
+import traceback
 
 from async_timeout import timeout as atimeout
 
@@ -23,7 +18,7 @@ class Job:
         self._callback = callback
         self._error_callback = error_callback
         self._traceback_stack = self._current_stack()
-        self.run_task = task = executor.loop.create_task(coro)
+        self.job_task = task = executor.loop.create_task(coro)
         task.add_done_callback(self._done_callback)
 
     def _done_callback(self, future):
@@ -51,7 +46,7 @@ class Job:
             if exc:
                 self._handle_exception(exc)
         except asyncio.CancelledError:
-            LOGGER.debug('Task %s cancelled', self.run_task)
+            LOGGER.debug('Task %s cancelled', self.job_task)
 
     @staticmethod
     def _current_stack():
@@ -61,7 +56,7 @@ class Job:
         exception_ctx = {
                 'message': str(exc),
                 'exception': exc,
-                'future': self.run_task
+                'future': self.job_task
         }
         if self.executor.loop.get_debug():
             exception_ctx['traceback'] = self._traceback_stack
@@ -73,21 +68,21 @@ class Job:
     async def wait(self, timeout=-1):
         self._waited = True
         with atimeout(timeout):
-            await self.run_task
+            await self.job_task
 
     def close(self):
-        if not self.run_task.done():
-            self.run_task.cancel()
+        if not self.job_task.done():
+            self.job_task.cancel()
         self.executor.discard(self)
 
     def done(self):
-        return self.run_task.done()
+        return self.job_task.done()
 
     def result(self):
-        return self.run_task.result()
+        return self.job_task.result()
 
     def exception(self):
-        return self.run_task.exception()
+        return self.job_task.exception()
 
     @property
     def callback(self):
@@ -139,29 +134,32 @@ class Executor:
             sys.stderr.write(''.join(tbs))
         handler(ctx)
 
-    async def close(self):
+    def cancel(self, cancel_current=False):
         for job in list(self._in_execution):
             job.close()
+
+    async def close(self):
+        self.cancel()
         await self._failed_jobs.put(None)
-        await asyncio.gather(
-            #self._await_task,
-            self._exception_task,
-            loop=self.loop
-        )
+        await self._exception_task
 
 async def test():
     print('cisono')
+    await asyncio.sleep(3)
+    a=2/0
 
 
 def done(future):
-    a = 1 / 0
     print(future)
 
 
 async def main():
     executor = Executor()
-    job = executor.execute(test(), done)
+    executor.execute(test(), None, done)
+    executor.execute(test(), None, done)
+    executor.execute(test(), None, done)
     await asyncio.sleep(1)
+    await executor.cancel()
     await executor.close()
     
 

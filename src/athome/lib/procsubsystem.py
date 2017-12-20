@@ -43,10 +43,8 @@ class ProcSubsystem(SubsystemModule):
         try:
             params = [sys.executable, '-m', self.module] + self.params
             with contextlib.suppress(asyncio.CancelledError):
-                self.proc = await asyncio.create_subprocess_exec(
-                    *params,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
+                self.proc = await asyncio.create_subprocess_exec(*params, 
+                    stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                     loop=self.loop)
 
                 # initialize subprocess runner
@@ -54,11 +52,7 @@ class ProcSubsystem(SubsystemModule):
                     'env': self.env,
                     'subsystem_config': self.config
                 }
-                await self.send_line('{} {}'.format(
-                    COMMAND_CONFIG, 
-                    json.dumps(message_config)
-                    )
-                )
+                await self.send_line('{} {}'.format(COMMAND_CONFIG, json.dumps(message_config)))
 
                 # start sub process runner
                 await self.send_line(COMMAND_START)

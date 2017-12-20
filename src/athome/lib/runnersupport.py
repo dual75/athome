@@ -67,10 +67,7 @@ class RunnerSupport:
                 LOGGER.debug('got line %s', msg.value)
                 command, arg = self._parse_line(msg.value)
                 if command == COMMAND_START:
-                    self.run_task = asyncio.ensure_future(
-                        self.start_task(), 
-                        loop=self.loop
-                    )
+                    self.run_task = asyncio.ensure_future(self.start_task(), loop=self.loop)
                     self.pipe_out(LINE_STARTED)
                 elif command == COMMAND_STOP:
                     self.running = False

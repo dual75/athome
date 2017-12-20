@@ -14,12 +14,6 @@ from functools import partial
 from athome.api.task import Task
 from athome.lib.runnersupport import RunnerSupport, runner_main
 
-from .procsubsystem import LINE_STARTED,\
-    LINE_EXITED,\
-    COMMAND_START,\
-    COMMAND_CONFIG,\
-    COMMAND_STOP
-
 MODULE_PREFIX = '__athome_tasksmodule_'
 TASK_PREFIX = 'task_'
 
@@ -46,12 +40,7 @@ class TaskRunner(RunnerSupport):
         loop = asyncio.get_event_loop()
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             LOGGER.debug('tasks module check')
-            all_files = await loop.run_in_executor(executor,
-                                                    partial(
-                                                        self._find_all,
-                                                        self.config['tasks_dir']
-                                                    )
-                                                  )
+            all_files = await loop.run_in_executor(executor, partial(self._find_all, self.config['tasks_dir']))
             all_file_names = {f[0] for f in all_files}
             memory_file_names = set(self.plugins.keys())
             for fname in memory_file_names - all_file_names:
@@ -63,7 +52,6 @@ class TaskRunner(RunnerSupport):
                     self._deactivate_task_module(fname)
                 task_ = self._load_task_module(fname, fpath, mtime)
                 self._activate_task(task_)
-
 
     def _activate_task(self, task_):
         """Add a plugin from current running set and start it
@@ -94,9 +82,9 @@ class TaskRunner(RunnerSupport):
         result = [(f, os.path.join(plugins_dir, f))
                   for f in os.listdir(plugins_dir)
                   if f.endswith('.py')
-                    and os.path.isfile(os.path.join(plugins_dir, f))
-                    and os.access(os.path.join(plugins_dir, f), os.R_OK)
-                 ]
+                  and os.path.isfile(os.path.join(plugins_dir, f))
+                  and os.access(os.path.join(plugins_dir, f), os.R_OK)
+                  ]
         return result
 
     def _find_changed(self, files):
@@ -145,15 +133,13 @@ class TaskRunner(RunnerSupport):
         result = None
         module_name = MODULE_PREFIX + fname[:-3]
         module = self._import_module(module_name, fpath)
-        coroutines = inspect.getmembers(
-            module, 
-            inspect.iscoroutinefunction
-        )
+        coroutines = inspect.getmembers(module, inspect.iscoroutinefunction)
         task_coros = [c for c in coroutines if c[0].startswith(TASK_PREFIX)]
         loop = asyncio.get_event_loop()
         if task_coros:
             LOGGER.debug("found task %s", fname)
-            result = Task(loop, fname, module, mtime, dict(task_coros), self.tasks)
+            result = Task(loop, fname, module, mtime,
+                          dict(task_coros), self.tasks)
             sys.modules[module_name] = result
         else:
             LOGGER.warning(
@@ -165,4 +151,3 @@ class TaskRunner(RunnerSupport):
 if __name__ == '__main__':
     runner = TaskRunner()
     runner_main(runner, True)
-

@@ -95,7 +95,7 @@ class SystemModule():
         self.config = None
         self.executor = Executor(self.loop)
         self.message_queue = asyncio.Queue()
-        self.message_task = None
+        self.message_job = asyncio.ensure_future(self.message_cycle(), loop=self.loop)
 
     def _on_initialize(self, loop, env, config):
         """Before 'initialize' callback"""
@@ -111,25 +111,23 @@ class SystemModule():
 
         pass
 
-    def _after_initialize(self, loop, config):
+    def _after_initialize(self, loop, env, config):
         self.initialized()
-
-    async def run(self):
-        """Placeholder for run coroutine"""
-
-        LOGGER.debug("run does nothing by default")
 
     def _on_start(self):
         """Before 'start' callback"""
 
         self.on_start()
-        self.message_task = asyncio.ensure_future(
-            self.message_cycle(), loop=self.loop)
 
     def on_start(self):
-        """on_start placeholder"""
+        """Mandatory on_start method"""
 
-        pass
+        raise NotImplementedError
+        
+    async def message_cycle(self):
+        """Mandatory message_queue consumer"""
+
+        raise NotImplementedError
 
     def _after_started(self):
         """After 'start' callback"""
@@ -153,7 +151,7 @@ class SystemModule():
     def _after_stopped(self):
         """After 'stop' callback"""
 
-        self.executor.close()
+        self.after_stopped()
 
     def after_stopped(self):
         """Perform module stop activities, mandatory"""
@@ -166,15 +164,14 @@ class SystemModule():
         LOGGER.debug('shutting down %s', __name__)
         try:
             self.on_shutdown()
-        except Exception as ex:
-            LOGGER.exception("Subsystem %s shutdown in error: %s",
-                             self.name, ex)
-        self.executor.close()
+        except:
+            LOGGER.exception("Subsystem %s shutdown in error: %s", self.name)
+
 
     def on_shutdown(self):
-        """on_shutdown placeholder"""
+        """on_shutdown mandatory method"""
 
-        pass
+        raise NotImplementedError
 
     def _on_fail(self):
         """Before 'fail' callback"""

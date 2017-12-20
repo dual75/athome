@@ -6,7 +6,7 @@ import asyncio
 import logging
 import contextlib
 
-from athome import MESSAGE_EVT
+from athome import Message, MESSAGE_EVT, MESSAGE_SHUTDOWN, MESSAGE_START
 from athome.system import SystemModule
 from athome.lib.jobs import Executor
 from athome.core import Core
@@ -21,7 +21,8 @@ class SubsystemModule(SystemModule):
         self.core = Core()
 
     async def message_cycle(self):
-        while not self.is_closed():
+        message = Message(MESSAGE_START, None)
+        while message.type != MESSAGE_SHUTDOWN:
             message = await self.message_queue.get()
             await self.on_message(message)
 
@@ -38,5 +39,8 @@ class SubsystemModule(SystemModule):
     
     def emit(self, evt):
         self.core.emit(evt)
+    
+    def on_shutdown(self):
+        self.message_queue.put_nowait(Message(MESSAGE_SHUTDOWN, None))
         
 
