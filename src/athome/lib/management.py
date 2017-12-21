@@ -24,7 +24,7 @@ class ManagedObject:
         self._managed_class = obj.__class__
         self._read_properties = set()
         self._write_properties = set()
-        self._methods = dict()
+        self.methods = dict()
         props = inspect.getmembers(self._managed_class, lambda m: isinstance(m, property))
         for name, prop in props:
             if prop.fget:
@@ -40,7 +40,7 @@ class ManagedObject:
                 assert not spec.varargs, 'varargs not allowed in managed methods'
                 assert not spec.varkw, 'varkw not allowed in managed methods'
                 assert not spec.kwonlyargs, 'kwonlyargs not allowed in managed methods'
-                self._methods[method_name] = MethodInfo(name, spec.args[1:])
+                self.methods[method_name] = MethodInfo(name, spec.args[1:])
 
     @property
     def read_properties(self):
@@ -59,8 +59,8 @@ class ManagedObject:
         setattr(self.obj, prop, value)
 
     def invoke(self, method, args=list()):
-        assert method in self._methods
-        return getattr(self.obj, self._methods[method].orig_name)(*args)
+        assert method in self.methods
+        return getattr(self.obj, self.methods[method].orig_name)(*args)
 
     def json(self):
         result = dict()

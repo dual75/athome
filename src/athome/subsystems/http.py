@@ -24,7 +24,7 @@ async def decode(request):
         result = await request.json()
         return result
     except json.decoder.JSONDecodeError:
-        return http_failure("data not properly formated")
+        raise aiohttp.web.HTTPBadRequest()
 
 
 def prepare_outcome():
@@ -69,12 +69,12 @@ def find_managed_subsystem(request):
 
 async def get_subsystem_idx_handler(request):
     json_ = json.dumps(Cache().lookup('subsystem'))
-    return aiohttp.web.Response(body=json_, content_type=CT_JSON)
+    return web.json_response(json_)
 
 
 async def get_subsystem_handler(request):
     managed = find_managed_subsystem(request)
-    return aiohttp.web.Response(body=managed.json(), content_type=CT_JSON)
+    return web.json_response(managed.json())
 
 
 async def post_subsystem_handler(request):
@@ -88,12 +88,12 @@ async def post_subsystem_handler(request):
     except Exception as ex:
         error_outcome(result, repr(ex))
     result = json.dumps(result)
-    return aiohttp.web.Response(body=result, content_type=CT_JSON)
+    return web.json_response(result)
 
 
 async def get_core_handler(request):
     managed = find_managed_core()
-    return aiohttp.web.Response(body=managed.json(), content_type=CT_JSON)
+    return web.json_response(managed.json())
 
 
 async def get_property_core_handler(request):
@@ -101,7 +101,7 @@ async def get_property_core_handler(request):
     property_ = request.match_info['property']
     property_value = managed.get_property(property_)
     json_ = json.dumps(property_value)
-    return aiohttp.web.Response(body=json_, content_type=CT_JSON)
+    return web.json_response(json_)
 
 
 async def get_property_subsystem_handler(request):
@@ -109,21 +109,26 @@ async def get_property_subsystem_handler(request):
     property_ = request.match_info['property']
     property_value = managed.get_property(property_)
     json_ = json.dumps(property_value)
-    return aiohttp.web.Response(body=json_, content_type=CT_JSON)
+    return web.json_response(json_)
 
 
 async def post_core_handler(request):
     managed = find_managed_core()
     result = prepare_outcome()
     try:
-        args = await decode(request)
         method = request.match_info['method']
-        call_result = managed.invoke(method, args)
+        if managed.methods[method].params:
+            args = await decode(request)
+            call_result = managed.invoke(method, args)
+        else:
+            call_result = managed.invoke(method)
         result['data'] = call_result
+    except aiohttp.web.HTTPError as ex:
+        raise ex
     except Exception as ex:
         error_outcome(result, repr(ex))
     result = json.dumps(result)
-    return aiohttp.web.Response(body=result, content_type=CT_JSON)
+    return web.json_response(result)
 
 
 class Subsystem(SubsystemModule):
@@ -179,6 +184,3 @@ class Subsystem(SubsystemModule):
     def greet(self, value):
         return 'ciao {}'.format(value)
 
-    @property
-    def status(self):
-        return self.state
