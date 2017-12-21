@@ -6,10 +6,15 @@ import inspect
 
 import json
 
+from collections import namedtuple
+MethodInfo = namedtuple('MetohdInfo', ('orig_name', 'params'))
 
-def managed(f):
-    setattr(f, '__managed_method', True)
-    return f
+
+def managed(name=None):
+    def decorated_function(function):
+        setattr(function, '__managed_method', name or f.__name__)
+        return function
+    return decorated_function
 
 
 class ManagedObject:
@@ -29,12 +34,13 @@ class ManagedObject:
         
         meths = inspect.getmembers(self.obj, inspect.ismethod)
         for name, meth in meths:
-            if getattr(meth, '__managed_method', False):
+            method_name = getattr(meth, '__managed_method', None)
+            if method_name:
                 spec = inspect.getfullargspec(meth)
                 assert not spec.varargs, 'varargs not allowed in managed methods'
                 assert not spec.varkw, 'varkw not allowed in managed methods'
                 assert not spec.kwonlyargs, 'kwonlyargs not allowed in managed methods'
-                self._methods[name] = spec.args[1:]
+                self._methods[method_name] = MethodInfo(name, spec.args[1:])
 
     @property
     def read_properties(self):
@@ -54,7 +60,7 @@ class ManagedObject:
 
     def invoke(self, method, args=list()):
         assert method in self._methods
-        return getattr(self.obj, method)(*args)
+        return getattr(self.obj, self._methods[method].orig_name)(*args)
 
     def json(self):
         result = dict()
@@ -62,7 +68,7 @@ class ManagedObject:
         descriptor['class'] = self._managed_class.__name__
         descriptor['read_properties'] = list(self._read_properties)
         descriptor['write_properties'] = list(self._write_properties)
-        descriptor['methods'] = self._methods
+        descriptor['methods'] = {name: method.params for name, method in self._methods.items()}
 
         result['__description'] = descriptor
         for prop in self._read_properties:

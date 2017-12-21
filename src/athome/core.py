@@ -13,6 +13,8 @@ from athome import Message,\
     MESSAGE_NONE,\
     MESSAGE_SHUTDOWN
 from athome.system import SystemModule
+from athome.lib.locator import Cache
+from athome.lib.management import managed
 
 SHUTDOWN_TIMEOUT = 2
 
@@ -36,6 +38,7 @@ class Core(SystemModule):
             self._subsystems = {}
             self.loop = None
             self.event_task = None
+            self._cache = Cache()
             self.__initialized = True
 
     def on_initialize(self):
@@ -55,6 +58,7 @@ class Core(SystemModule):
                     self.env,
                     self.config['subsystem'][name]['config']
                 )
+                self._cache.register('subsystem/{}'.format(name), subsystem)
             except Exception as ex:
                 LOGGER.exception('Error in initialization')
                 raise ex
@@ -116,3 +120,15 @@ class Core(SystemModule):
     @property
     def subsystems(self):
         return list(self._subsystems.keys())
+
+    @property
+    def status(self):
+        return self.state
+
+    @managed('stop')
+    def managed_stop(self):
+        self.stop()
+
+    @managed('shutdown')
+    def managed_shutdown(self):
+        self.shutdown()

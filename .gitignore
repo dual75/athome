@@ -9,4 +9,6 @@ lib/
 Lib/
 share/
 pyenv.cfg
+*.pid
+
 

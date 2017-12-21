@@ -4,7 +4,7 @@ env:
 
 subsystem:
     hbmqtt:
-        enable: true
+        enable: false
         class: 'athome.subsystems.hbmqtt.Subsystem'
         config:
             listeners:
@@ -51,7 +51,7 @@ subsystem:
             poll_interval: 10
 
     http:
-        enable: false
+        enable: true
         class: 'athome.subsystems.http.Subsystem'
         config:
             addr: 'localhost'

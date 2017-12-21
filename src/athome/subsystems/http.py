@@ -40,6 +40,19 @@ def error_outcome(response, msg, code=-1):
     response['status'] = msg
 
 
+def find_managed_core():
+    core_path = 'core'
+    managed_path = 'managed/{}'.format(core_path)
+    cache = Cache()
+    try:
+        managed = cache.lookup(managed_path)
+    except NameError as ex:
+        core = Core()
+        managed = ManagedObject(core)
+        cache.register(managed_path, managed)
+    return managed
+
+
 def find_managed_subsystem(request):
     cache = Cache()
     name = request.match_info['name']
@@ -52,6 +65,11 @@ def find_managed_subsystem(request):
         managed = ManagedObject(subsystem)
         cache.register(managed_path, managed)
     return managed
+
+
+async def get_subsystem_idx_handler(request):
+    json_ = json.dumps(Cache().lookup('subsystem'))
+    return aiohttp.web.Response(body=json_, content_type=CT_JSON)
 
 
 async def get_subsystem_handler(request):
@@ -73,22 +91,25 @@ async def post_subsystem_handler(request):
     return aiohttp.web.Response(body=result, content_type=CT_JSON)
 
 
-def find_managed_core():
-    core_path = 'core'
-    managed_path = 'managed/{}'.format(core_path)
-    cache = Cache()
-    try:
-        managed = cache.lookup(managed_path)
-    except NameError as ex:
-        core = Core()
-        managed = ManagedObject(core)
-        cache.register(managed_path, managed)
-    return managed
-
-
 async def get_core_handler(request):
     managed = find_managed_core()
     return aiohttp.web.Response(body=managed.json(), content_type=CT_JSON)
+
+
+async def get_property_core_handler(request):
+    managed = find_managed_core()
+    property_ = request.match_info['property']
+    property_value = managed.get_property(property_)
+    json_ = json.dumps(property_value)
+    return aiohttp.web.Response(body=json_, content_type=CT_JSON)
+
+
+async def get_property_subsystem_handler(request):
+    managed = find_managed_subsystem(request)
+    property_ = request.match_info['property']
+    property_value = managed.get_property(property_)
+    json_ = json.dumps(property_value)
+    return aiohttp.web.Response(body=json_, content_type=CT_JSON)
 
 
 async def post_core_handler(request):
@@ -116,35 +137,43 @@ class Subsystem(SubsystemModule):
         """Instantiate a fresh server"""
 
         self.core.emit('http_starting')
+
         self.app = aiohttp.web.Application(loop=self.core.loop)
         self.app.router.add_route('GET', '/core', 
             get_core_handler)
         self.app.router.add_route('POST', '/core/{method}', 
             post_core_handler)
+        self.app.router.add_route('GET', '/core/{property}', 
+            get_property_core_handler)
+        self.app.router.add_route('GET', '/subsystem', 
+            get_subsystem_idx_handler)
         self.app.router.add_route('GET', '/subsystem/{name}', 
             get_subsystem_handler)
         self.app.router.add_route('POST', '/subsystem/{name}/{method}', 
             post_subsystem_handler)
+        self.app.router.add_route('GET', '/subsystem/{name}/{property}', 
+            get_property_subsystem_handler)
 
-    async def on_start(self):
-        """Start broker"""
-
-        LOGGER.debug('starting http server')
-        await self.core.loop.create_server(self.app.make_handler(),
+        def create_server_success(future):
+            self.started()
+        self.executor.execute(self.core.loop.create_server(
+                                           self.app.make_handler(),
                                            self.config['addr'],
                                            self.config['port']
-                                           )
+                                           ), create_server_success)
     
     def after_started(self):
         self.emit('http_started')
 
     def on_stop(self):
         """Shut down aiohttp application"""
+        def shutdown_success(future):
+            self.stopped()
 
-        async def stop_server():
-            self.emit('http_stopping')
-            await self.app.shutdown()
-        self.executor.execute(stop_server(), partial(self.emit, 'http_stopped'))
+        self.executor.execute(self.app.shutdown(), shutdown_success)
+
+    def after_stopped(self):
+        self.emit('http_stopped')
 
     @managed
     def greet(self, value):
