@@ -70,7 +70,7 @@ class Job:
         with atimeout(timeout):
             await self.job_task
 
-    def close(self):
+    def cancel(self):
         if not self.job_task.done():
             self.job_task.cancel()
         self.executor.discard(self)
@@ -134,12 +134,12 @@ class Executor:
             sys.stderr.write(''.join(tbs))
         handler(ctx)
 
-    def cancel(self, cancel_current=False):
+    def cancel_all(self):
         for job in list(self._in_execution):
-            job.close()
+            job.cancel()
 
     async def close(self):
-        self.cancel()
+        self.cancel_all()
         await self._failed_jobs.put(None)
         await self._exception_task
 
@@ -159,7 +159,7 @@ async def main():
     executor.execute(test(), None, done)
     executor.execute(test(), None, done)
     await asyncio.sleep(1)
-    await executor.cancel()
+    await executor.cancel_all()
     await executor.close()
     
 

@@ -10,6 +10,7 @@ import asyncio
 
 from athome import Message, MESSAGE_LINE
 from athome.lib.lineprotocol import LineProtocol
+from athome.lib.jobs import Executor
 
 from .procsubsystem import LINE_EXITED,\
     LINE_STARTED,\
@@ -31,10 +32,11 @@ class RunnerSupport:
         self.messages = asyncio.Queue()
         self.pipe_stream = None
         self.line_protocol = None
-        self.run_task = None
+        self.run_job = None
         self.env = None
         self.config = None
         self.running = False
+        self.executor = Executor(loop=self.loop)
         
     def pipe_in(self, line):
         self.messages.put_nowait(Message(MESSAGE_LINE, line))
@@ -54,10 +56,7 @@ class RunnerSupport:
         self.running = True
         await self._event_loop()
 
-    async def start_task(self):
-        raise NotImplementedError
-
-    async def stop_task(self):
+    async def run_coro(self):
         raise NotImplementedError
         
     async def _event_loop(self):
@@ -67,7 +66,7 @@ class RunnerSupport:
                 LOGGER.debug('got line %s', msg.value)
                 command, arg = self._parse_line(msg.value)
                 if command == COMMAND_START:
-                    self.run_task = asyncio.ensure_future(self.start_task(), loop=self.loop)
+                    self.run_job = self.executor.execute(self.run_coro())
                     self.pipe_out(LINE_STARTED)
                 elif command == COMMAND_STOP:
                     self.running = False
@@ -77,7 +76,7 @@ class RunnerSupport:
                     self._write_pid_file()
                 else:
                     await self.on_command(command, arg)
-        await self.stop_task()
+        await self.executor.cancel_all()
         self.pipe_out(LINE_EXITED)
         self._remove_pid_file()
 
