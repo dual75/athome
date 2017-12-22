@@ -20,4 +20,4 @@ MESSAGE_SHUTDOWN, \
 MESSAGE_LINE, \
 MESSAGE_NONE = range(6)
 
-Message = namedtuple('Message', ('type', 'value'))
+Message = namedtuple('Message', ('type', 'value', 'data'))

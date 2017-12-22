@@ -16,6 +16,10 @@ LOGGER = logging.getLogger(__name__)
 
 class SubsystemModule(SystemModule):
 
+    EVENT_START = 'athome_started'
+    EVENT_STOP = 'athome_stopping'
+    EVENT_SHUTDOWN = 'athome_shutdown'
+
     def __init__(self, name):
         super().__init__(name)
         self.core = Core()
@@ -30,11 +34,11 @@ class SubsystemModule(SystemModule):
         LOGGER.debug('subsystem %s got msg %s', self.name, msg)
         if not self.is_failed():
             if msg.type == MESSAGE_EVT:
-                if msg.value == 'athome_started':
+                if msg.value == EVENT_START:
                     self.start()
-                elif msg.value == 'athome_stopping': 
+                elif msg.value == EVENT_STOP: 
                     self.stop()
-                elif msg.value == 'athome_shutdown':
+                elif msg.value == EVENT_SHUTDOWN:
                     self.shutdown()
     
     def emit(self, evt):

@@ -34,6 +34,9 @@ class TaskRunner(RunnerSupport):
     async def stop_task(self):
         pass
 
+    async def on_input_line(self, command, args):
+        pass
+
     async def _directory_scan(self):
         """Scan plugins directory for new, deleted or modified files"""
 

@@ -7,16 +7,17 @@ import sys
 import json
 import logging
 import asyncio
+import signal
 
 from athome import Message, MESSAGE_LINE
 from athome.lib.lineprotocol import LineProtocol
 from athome.lib.jobs import Executor
 
-from .procsubsystem import LINE_EXITED,\
+from .procsubsystem import COMMAND_START, \
     LINE_STARTED,\
-    COMMAND_START,\
-    COMMAND_CONFIG,\
-    COMMAND_STOP
+    send_line,
+    parse_line,
+    PipeRequest
 
 EXIT_OK=0
 EXIT_ERROR=-1
@@ -32,11 +33,15 @@ class RunnerSupport:
         self.messages = asyncio.Queue()
         self.pipe_stream = None
         self.line_protocol = None
-        self.run_job = None
         self.env = None
         self.config = None
         self.running = False
         self.executor = Executor(loop=self.loop)
+        for signame in 'SIGINT', 'SIGTERM':
+            loop.add_signal_handler(
+                getattr(signal, signame), 
+                partial(self.handle_stop_signal, signame)
+                )
         
     def pipe_in(self, line):
         self.messages.put_nowait(Message(MESSAGE_LINE, line))
@@ -60,49 +65,41 @@ class RunnerSupport:
         raise NotImplementedError
         
     async def _event_loop(self):
-        while self.running or not self.messages.empty():
-            msg = await self.messages.get()            
-            if msg.type == MESSAGE_LINE:
-                LOGGER.debug('got line %s', msg.value)
-                command, arg = self._parse_line(msg.value)
-                if command == COMMAND_START:
-                    self.run_job = self.executor.execute(self.run_coro())
-                    self.pipe_out(LINE_STARTED)
-                elif command == COMMAND_STOP:
-                    self.running = False
-                elif command == COMMAND_CONFIG:
-                    self.env = arg['env']
-                    self.config = arg['subsystem_config']
-                    self._write_pid_file()
-                else:
-                    await self.on_command(command, arg)
-        await self.executor.cancel_all()
-        self.pipe_out(LINE_EXITED)
-        self._remove_pid_file()
+        try:
+            while self.running or not self.messages.empty():
+                msg = await self.messages.get()            
+                if msg.type == MESSAGE_LINE:
+                    LOGGER.debug('got line %s', msg.value)
+                    command, arg = self._parse_line(msg.value)
+                    if command == COMMAND_START:
+                        self.env = arg['env']
+                        self.config = arg['subsystem_config']
+                        self._write_pid_file()
+                        self.executor.execute(self.run_coro())
+                        self.pipe_out(LINE_STARTED)
+                    else:
+                        await self.on_input_line(command, arg)
+        finally:
+            await self.executor.close()
+            self._remove_pid_file()
 
-    async def on_command(self, command, arg):
+    def handle_stop_signal(self, signame):
+        self.running = False
+
+    async def on_input_line(self, command, arg):
         pass
 
-    @staticmethod
-    def _parse_line(line):
-        command, arg, chunks = line[:-1], None, line[:-1].split(' ', 1)
-        if len(chunks) > 1:
-            command, args = chunks[0], chunks[1]
-            arg = json.loads(args)
-        return command, arg
-
     def _pid_file(self):
-        return os.path.join(
-            self.env['run_dir'], 
-            '{}_subsystem.pid'.format(self.name)
-        )
+        return os.path.join(self.env['run_dir'], '{}_subsystem.pid'.format(self.name))
 
     def _write_pid_file(self):
         with open(self._pid_file(), 'w') as file_out:
             file_out.write('{}'.format(os.getpid()))
     
     def _remove_pid_file(self):
-        os.unlink(self._pid_file())
+        fname = self._pid_file()
+        if os.path.exits(fname) and os.access(fname, os.W_OK)
+            os.unlink(fname)
 
 
 def runner_main(runner, debug=False):
@@ -119,3 +116,4 @@ def runner_main(runner, debug=False):
         LOGGER.exception('Error in runner')
         sys.exit(EXIT_ERROR)
     sys.exit(EXIT_OK)
+    
