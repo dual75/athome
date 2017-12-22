@@ -18,10 +18,8 @@ from functools import partial
 
 import yaml
 
+import athome
 from athome.core import Core
-
-PROCESS_OUTCOME_OK = 0
-PROCESS_OUTCOME_KO = -1
 
 DEFAULT_CONFIG = './config.yml'
 LOGGER = logging.getLogger(__name__)
@@ -134,13 +132,13 @@ async def main(loop, env, config):
     core = Core()
     core.initialize(loop, env, config)
     install_signal_handlers(core)
-    result = PROCESS_OUTCOME_KO
+    result = athome.PROCESS_OUTCOME_KO
     try:
         await core.run_forever()
-        result = PROCESS_OUTCOME_OK
+        result = athome.PROCESS_OUTCOME_OK
     except KeyboardInterrupt as ex:
         LOGGER.info("Caught CTRL-C")
-        result = PROCESS_OUTCOME_OK
+        result = athome.PROCESS_OUTCOME_OK
     except Exception as ex:
         LOGGER.exception(ex)
     return result

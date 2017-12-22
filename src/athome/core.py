@@ -80,7 +80,7 @@ class Core(SystemModule):
         await self.message_job
 
     async def message_cycle(self):
-        message = Message(MESSAGE_NONE, None)
+        message = Message(MESSAGE_NONE, None, None)
         while message.type != MESSAGE_SHUTDOWN:
             message = await self.message_queue.get()
             if message.type == MESSAGE_START:
@@ -90,6 +90,7 @@ class Core(SystemModule):
             elif message.type == MESSAGE_EVT:
                 await self._propagate_message(message)
             elif message.type == MESSAGE_SHUTDOWN:
+                # do nothing, cycle will exit upon next iteration
                 pass
         await asyncio.sleep(SHUTDOWN_TIMEOUT, loop=self.loop)
 
@@ -112,10 +113,10 @@ class Core(SystemModule):
     def on_shutdown(self):
         self.emit('athome_shutdown')
 
-    def emit(self, evt):
+    def emit(self, evt, data=None):
         """Propagate event 'evt' to _subsystems"""
 
-        self.message_queue.put_nowait(Message(MESSAGE_EVT, evt))
+        self.message_queue.put_nowait(Message(MESSAGE_EVT, evt, data))
 
     @property
     def subsystems(self):

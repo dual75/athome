@@ -23,13 +23,19 @@ LOGGER = logging.getLogger(__name__)
 class TaskRunner(RunnerSupport):
 
     def __init__(self):
-        super().__init__()
+        super().__init__('tasks')
         self.plugins = dict()
 
     async def run_coro(self):
         while self.running:
             await self._directory_scan()
             await asyncio.sleep(self.config['poll_interval'])
+
+    async def stop_task(self):
+        pass
+
+    async def on_input_line(self, command, args):
+        pass
 
     async def _directory_scan(self):
         """Scan plugins directory for new, deleted or modified files"""
@@ -136,7 +142,7 @@ class TaskRunner(RunnerSupport):
         if task_coros:
             LOGGER.debug("found task %s", fname)
             result = Task(loop, fname, module, mtime,
-                          dict(task_coros), self.tasks)
+                          dict(task_coros), self.plugins)
             sys.modules[module_name] = result
         else:
             LOGGER.warning(

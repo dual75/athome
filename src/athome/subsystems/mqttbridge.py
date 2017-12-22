@@ -190,6 +190,10 @@ class Republisher():
 class Subsystem(SubsystemModule):
     """MQTT Bridge subsystem"""
 
+    EVENT_START = 'mqtt_started'
+    EVENT_STOP = 'mqtt_stopping'
+    EVENT_SHUTDOWN = 'athome_shutdown'
+
     def __init__(self, name):
         super().__init__(name)
         self.broker_infos = None
@@ -219,17 +223,7 @@ class Subsystem(SubsystemModule):
                 self.republishers.append(republisher)
         except ClientException as ex:
             LOGGER.error("Client exception: %s", ex)
-
-    async def on_message(self, msg):
-        LOGGER.debug('mqttbridge msg handler: %s', msg)
-        if not self.is_failed():
-            if msg.type == MESSAGE_EVT:
-                if msg.value == 'hbmqtt_started':
-                    self.start()
-                elif msg.value == 'hbmqtt_stopping':
-                    self.stop()
-                elif msg.value == 'athome_shutdown':
-                    self.shutdown()
+            self.fail()
 
     @staticmethod
     def _compose_url(broker):

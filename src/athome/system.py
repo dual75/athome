@@ -129,7 +129,7 @@ class SystemModule():
         """Before 'start' callback"""
 
         self.on_start()
-        self.message_queue.put_nowait(Message(MESSAGE_START, None))
+        self.message_queue.put_nowait(Message(MESSAGE_START, None, None))
 
     def on_start(self):
         """Mandatory on_start method"""
@@ -154,7 +154,7 @@ class SystemModule():
     def _on_stop(self):
         """Before 'stop' callback"""
         self.on_stop()
-        self.message_queue.put_nowait(Message(MESSAGE_STOP, None))
+        self.message_queue.put_nowait(Message(MESSAGE_STOP, None, None))
 
     def on_stop(self):
         """Perform module stop activities, mandatory"""
@@ -175,7 +175,7 @@ class SystemModule():
         """Before 'shutdown' callback"""
 
         LOGGER.debug('shutting down %s', __name__)
-        self.message_queue.put_nowait(Message(MESSAGE_SHUTDOWN, None))
+        self.message_queue.put_nowait(Message(MESSAGE_SHUTDOWN, None, None))
         try:
             self.on_shutdown()
         except:

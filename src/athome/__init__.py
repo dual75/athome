@@ -20,4 +20,7 @@ MESSAGE_SHUTDOWN, \
 MESSAGE_LINE, \
 MESSAGE_NONE = range(6)
 
-Message = namedtuple('Message', ('type', 'value'))
+PROCESS_OUTCOME_OK = 0
+PROCESS_OUTCOME_KO = -1
+
+Message = namedtuple('Message', ('type', 'value', 'data'))
