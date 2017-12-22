@@ -68,7 +68,7 @@ class ManagedObject:
         descriptor['class'] = self._managed_class.__name__
         descriptor['read_properties'] = list(self._read_properties)
         descriptor['write_properties'] = list(self._write_properties)
-        descriptor['methods'] = {name: method.params for name, method in self._methods.items()}
+        descriptor['methods'] = {name: method.params for name, method in self.methods.items()}
 
         result['__description'] = descriptor
         for prop in self._read_properties:

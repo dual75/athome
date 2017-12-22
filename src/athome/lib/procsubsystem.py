@@ -12,6 +12,7 @@ from athome.subsystem import SubsystemModule
 
 LINE_EXITED = 'exit\n'
 LINE_STARTED = 'started\n'
+LINE_ERROR = 'error\n'
 
 COMMAND_START = 'start'
 COMMAND_STOP = 'stop'
@@ -77,9 +78,12 @@ class ProcSubsystem(SubsystemModule):
                         self.started()
                     elif data == LINE_EXITED:
                         running = False
+                    elif data == LINE_ERROR:
+                        running = False
+                        self.fail()
             await self.proc.wait()
             self.proc = None
-            if not self.is_closed():
+            if self.state != 'failed':
                 self.stopped()
         except Exception as ex:
             LOGGER.exception('Exception occurred in run() coro')

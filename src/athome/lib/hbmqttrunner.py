@@ -23,12 +23,13 @@ class HbmqttRunner(RunnerSupport):
         super().__init__('hbmqtt')
         self.broker = None
        
-    async def start_task(self):
+    async def run_coro(self):
         self.broker = Broker(self.config)
         await self.broker.start()
 
-    async def stop_task(self):
-        self.broker.shutdown()
+    async def term_coro(self):
+        if self.broker:
+            self.broker.shutdown()
         self.broker = None
 
 

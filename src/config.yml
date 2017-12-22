@@ -4,7 +4,7 @@ env:
 
 subsystem:
     hbmqtt:
-        enable: false
+        enable: true
         class: 'athome.subsystems.hbmqtt.Subsystem'
         config:
             listeners:
@@ -66,7 +66,7 @@ logging:
     disable_existing_loggers: true
 
     root:
-        level: 'DEBUG'
+        level: 'INFO'
         handlers: ['console_handler']
         formatter: 'standard'
         
@@ -88,7 +88,7 @@ logging:
 
     loggers: 
         asyncio:
-            level: 'DEBUG'
+            level: 'INFO'
             handlers: [ 'console_handler']
         transitions:
             level: 'WARNING'

@@ -8,12 +8,13 @@ import json
 import logging
 import asyncio
 
-from athome import Message, MESSAGE_LINE
+from athome import Message, MESSAGE_SHUTDOWN, MESSAGE_LINE
 from athome.lib.lineprotocol import LineProtocol
 from athome.lib.jobs import Executor
 
 from .procsubsystem import LINE_EXITED,\
     LINE_STARTED,\
+    LINE_ERROR,\
     COMMAND_START,\
     COMMAND_CONFIG,\
     COMMAND_STOP
@@ -27,6 +28,7 @@ LOGGER = logging.getLogger(__name__)
 class RunnerSupport:
 
     def __init__(self, name, loop=None):
+        assert name is not None
         self.name = name
         self.loop = loop or asyncio.get_event_loop()
         self.messages = asyncio.Queue()
@@ -35,7 +37,6 @@ class RunnerSupport:
         self.run_job = None
         self.env = None
         self.config = None
-        self.running = False
         self.executor = Executor(loop=self.loop)
         
     def pipe_in(self, line):
@@ -58,17 +59,28 @@ class RunnerSupport:
 
     async def run_coro(self):
         raise NotImplementedError
+
+    async def term_coro(self):
+        pass
+
+    def _error_callback(self, exc):
+        print("#### Now calling _error_callback on exc %s ####" % exc)
+        self.outcome = LINE_ERROR
+        self.running = False
+        self.messages.put_nowait(Message(MESSAGE_SHUTDOWN, None))
         
     async def _event_loop(self):
+        line_outcome = LINE_EXITED
         while self.running or not self.messages.empty():
             msg = await self.messages.get()            
             if msg.type == MESSAGE_LINE:
                 LOGGER.debug('got line %s', msg.value)
                 command, arg = self._parse_line(msg.value)
                 if command == COMMAND_START:
-                    self.run_job = self.executor.execute(self.run_coro())
+                    self.run_job = self.executor.execute(self.run_coro(), None, self._error_callback)
                     self.pipe_out(LINE_STARTED)
                 elif command == COMMAND_STOP:
+                    await self.term_coro()
                     self.running = False
                 elif command == COMMAND_CONFIG:
                     self.env = arg['env']
@@ -76,8 +88,12 @@ class RunnerSupport:
                     self._write_pid_file()
                 else:
                     await self.on_command(command, arg)
-        await self.executor.cancel_all()
-        self.pipe_out(LINE_EXITED)
+            elif msg.type == MESSAGE_SHUTDOWN:
+                line_outcome = LINE_ERROR
+                running = False
+
+        await self.executor.close()
+        self.pipe_out(line_outcome)
         self._remove_pid_file()
 
     async def on_command(self, command, arg):

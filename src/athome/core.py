@@ -90,7 +90,7 @@ class Core(SystemModule):
             elif message.type == MESSAGE_EVT:
                 await self._propagate_message(message)
             elif message.type == MESSAGE_SHUTDOWN:
-                self.shutdown()
+                pass
         await asyncio.sleep(SHUTDOWN_TIMEOUT, loop=self.loop)
 
     async def _propagate_message(self, evt):

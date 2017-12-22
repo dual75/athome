@@ -107,7 +107,6 @@ class SystemModule():
     async def _wrap_message_cycle(self):
         await self.message_cycle()
         await self.executor.close()
-        self.shutdown()
 
     def _on_initialize(self, loop, env, config):
         """Before 'initialize' callback"""

@@ -26,13 +26,10 @@ class TaskRunner(RunnerSupport):
         super().__init__()
         self.plugins = dict()
 
-    async def start_task(self):
+    async def run_coro(self):
         while self.running:
             await self._directory_scan()
             await asyncio.sleep(self.config['poll_interval'])
-
-    async def stop_task(self):
-        pass
 
     async def _directory_scan(self):
         """Scan plugins directory for new, deleted or modified files"""

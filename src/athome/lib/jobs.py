@@ -18,36 +18,44 @@ class Job:
         self._callback = callback
         self._error_callback = error_callback
         self._traceback_stack = self._current_stack()
-        self.job_task = task = executor.loop.create_task(coro)
-        task.add_done_callback(self._done_callback)
+        self.job_task = task = asyncio.ensure_future(
+            self._done_callback(coro),
+            loop=self.executor.loop
+            )
+        #task.add_done_callback(self._done_callback)
 
-    def _done_callback(self, future):
-        self.executor.discard(self)
+    async def _done_callback(self, coro):
+        result, exc = None, None
         try:
-            exc = future.exception()
-            if not exc:
-                if self._callback:
-                    try:
-                        self._traceback_stack = self._current_stack()
-                        self._callback(future.result())
-                    except Exception as e:
-                        LOGGER.warning('caught exception in done callback')
-                        exc = e
-                        self._traceback_stack = traceback.extract_tb(sys.exc_info()[2])
-            elif self._error_callback:
-                try:
-                    self._traceback_stack = self._current_stack()
-                    self._error_callback(exc)
-                    exc = None
-                except Exception as e:
-                    LOGGER.warning('caught exception in error callback')
-                    exc = e
-                    self._traceback_stack = traceback.extract_tb(sys.exc_info()[2])
-            if exc:
-                self._handle_exception(exc)
-        except asyncio.CancelledError:
+            result = await coro
+        except asyncio.CancelledError as ex:
             LOGGER.debug('Task %s cancelled', self.job_task)
+            return
+        except:
+            _, exc, tb = sys.exc_info()
+            self._traceback_stack = traceback.extract_tb(tb)
 
+        self.executor.discard(self)
+        if not exc and self._callback:
+            LOGGER.debug('invoking _callback')
+            try:
+                self._traceback_stack = self._current_stack()
+                self._callback(result)
+            except Exception as e:
+                LOGGER.warning('caught exception in done callback')
+                exc = e
+                self._traceback_stack = traceback.extract_tb(sys.exc_info()[2])
+        elif exc and self._error_callback:
+            LOGGER.debug('invoking _error_callback')
+            try:
+                self._error_callback(exc)
+            except Exception as e:
+                LOGGER.warning('caught exception in error callback')
+                exc = e
+                self._traceback_stack = traceback.extract_tb(sys.exc_info()[2])
+        if exc:
+            self._handle_exception(exc)
+            
     @staticmethod
     def _current_stack():
         return traceback.extract_stack(sys._getframe(3))
@@ -129,7 +137,6 @@ class Executor:
                     or self.loop.default_exception_handler
         LOGGER.debug('_handle_exception, handler is %s', handler)
         if self.loop.get_debug():
-            LOGGER.debug('writing out traceback: %s', ctx['traceback'])
             tbs = traceback.format_list(ctx['traceback'])
             sys.stderr.write(''.join(tbs))
         handler(ctx)
@@ -142,6 +149,7 @@ class Executor:
         self.cancel_all()
         await self._failed_jobs.put(None)
         await self._exception_task
+
 
 async def test():
     print('cisono')
@@ -158,13 +166,13 @@ async def main():
     executor.execute(test(), None, done)
     executor.execute(test(), None, done)
     executor.execute(test(), None, done)
-    await asyncio.sleep(1)
-    await executor.cancel_all()
+    await asyncio.sleep(4)
+    executor.cancel_all()
     await executor.close()
     
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     loop = asyncio.get_event_loop()
-    loop.set_debug(False)
+    loop.set_debug(True)
     asyncio.get_event_loop().run_until_complete(main())
