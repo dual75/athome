@@ -7,9 +7,12 @@ import asyncio
 import contextlib
 import logging
 import json
+import types
+import uuid
 
 from athome.subsystem import SubsystemModule
 
+LINE_READY = 'ready\n'
 LINE_EXITED = 'exit\n'
 LINE_STARTED = 'started\n'
 LINE_ERROR = 'error\n'
@@ -21,11 +24,11 @@ COMMAND_START = 'start'
 LOGGER = logging.getLogger(__name__)
 
 
-def format_request(command, arg):
+def format_line(command, arg):
     message_arg = json.dumps(arg)
     return '{} {}'.format(command, message_arg)
 
-def parse_request(line):
+def parse_line(line):
     command, arg, chunks = line[:-1], None, line[:-1].split(' ', 1)
     if len(chunks) > 1:
         command, args = chunks[0], chunks[1]
@@ -41,13 +44,11 @@ class PipeRequest:
         self.arg = arg
         self.input_stream = input_stream
         self.output_stream = output_stream
-
-    @property   
+   
     async def response(self):
-        send_line(self.output_stream, format_request(self.command, self.arg))
-        line = await input_stream.readline()
-        return parse_request(line)
-
+        send_line(self.output_stream, format_line(self.command, self.arg))
+        response_line = await self.input_stream.readline()
+        return parse_line(response_line)
 
 
 class ProcSubsystem(SubsystemModule):
@@ -59,6 +60,7 @@ class ProcSubsystem(SubsystemModule):
         self.proc = None
         self.module = module
         self.params = params
+        self.request = None
 
     def on_start(self):
         self.executor.execute(self.run())
@@ -71,10 +73,10 @@ class ProcSubsystem(SubsystemModule):
 
     def on_shutdown(self):
         """On 'shutdown' event callback method"""
-        LOGGER.error("Shutdown!!!")
         if self.proc:
-            LOGGER.error("Shutdown!!!")
+            LOGGER.error("now killing self.proc")
             self.proc.kill()
+            self.proc = None
 
     async def run(self):
         """Subsystem activity method
@@ -88,37 +90,66 @@ class ProcSubsystem(SubsystemModule):
                     stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                     loop=self.loop)
 
+                data = await self.readline()
+                if data != LINE_READY:
+                    raise AssertionError("first expected line from child MUST be 'ready', was \'{}\'".format(data))
+
                 # initialize subprocess runner
-                message_config = {
-                    'env': self.env,
-                    'subsystem_config': self.config
-                }
-                send_line(self.proc.stdin, format_request(COMMAND_START, message_config))
+                message_config = {'env': self.env, 'subsystem_config': self.config}
+                self.sendline(COMMAND_START, message_config)
 
                 while True:
-                    data = await self.proc.stdout.readline()
-                    if not data or data[-1] != NEW_LINE:
-                        # EOF reached, partial reads are discarded
+                    line = await self.readline()
+                    if not line:
                         break
     
-                    data = data.decode('utf-8')
-                    if data == LINE_STARTED:
-                        self.started()
+                    command, arg = parse_line(line)
+                    handler_coro = getattr(self, '{}_line_handler'.format(command), None)
+                    if handler_coro:
+                        assert asyncio.iscoroutinefunction(handler_coro)
+                        await handler_coro(arg)
+
             if self.proc.returncode is None:
                 self.proc.kill()
             self.proc = None
             if self.is_stopping():
                 self.stopped()
-        except Exception as ex:
+        except:
             LOGGER.exception('Exception occurred in run() coro')
             if self.proc:
                 LOGGER.warning('Forcibly terminate process %s', self.proc)
                 self.proc.kill()
-            raise ex
-    
-    async def line_execute(self, command, arg=None):
-        request = PipeRequest(command, arg, self.proc.stdout, self.proc.stdin)
-        return await request.response
+            raise
+
+    async def started_line_handler(self, arg):
+        self.started()
+
+    async def response_line_handler(self, arg):
+        res_id = arg['__request_uuid']
+        assert self.request and not self.request.done()
+        self.request.set_result(arg)
+
+    async def readline(self):
+        result = None
+        data = await self.proc.stdout.readline()
+        if data and data[-1] == NEW_LINE:
+            result = data.decode('utf-8')
+        return result
+
+    def sendline(self, request, arg=None):
+        send_line(self.proc.stdin, format_line(request, arg))
+
+    async def line_execute(self, command, arg=dict(), callback=None):
+        assert self.request is None
+        self.request = self.loop.create_future()
+        reqid = uuid.uuid4().hex
+        arg['__request_uuid'] = reqid
+        self.sendline(command, arg)
+        await self.request
+        result = self.request.get_result()
+        assert result['__request_uuid'] == reqid
+        self.request = None
+        return result['payload']
 
     def after_started(self):
         self.emit('{}_started'.format(self.name))

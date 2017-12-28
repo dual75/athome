@@ -83,7 +83,7 @@ async def post_subsystem_handler(request):
     args = await decode(request)
     result = prepare_outcome()
     try:
-        call_result = managed.invoke(method, args)
+        call_result = await managed.async_invoke(method, args)
         result['data'] = call_result
     except Exception as ex:
         error_outcome(result, repr(ex))
@@ -109,7 +109,20 @@ async def get_property_subsystem_handler(request):
     property_ = request.match_info['property']
     property_value = managed.get_property(property_)
     json_ = json.dumps(property_value)
-    return web.json_response(json_)
+    return web.json_response(json_) 
+
+
+async def get_subsystem_handler(request):
+    managed = find_managed_subsystem(request)
+    method = request.match_info['method']
+    result = prepare_outcome()
+    try:
+        call_result = await managed.async_invoke(method)
+        result['data'] = call_result
+    except Exception as ex:
+        error_outcome(result, repr(ex))
+    result = json.dumps(result)
+    return web.json_response(result)
 
 
 async def post_core_handler(request):
@@ -156,6 +169,8 @@ class Subsystem(SubsystemModule):
             get_subsystem_handler)
         self.app.router.add_route('POST', '/subsystem/{name}/{method}', 
             post_subsystem_handler)
+        self.app.router.add_route('GET', '/subsystem/{name}/{method}', 
+            get_subsystem_handler)
         self.app.router.add_route('GET', '/subsystem/{name}/{property}', 
             get_property_subsystem_handler)
 
@@ -180,7 +195,7 @@ class Subsystem(SubsystemModule):
     def after_stopped(self):
         self.emit('http_stopped')
 
-    @managed
-    def greet(self, value):
+    async def greet(self, value):
         return 'ciao {}'.format(value)
 
+    greet.managed = 'greet'

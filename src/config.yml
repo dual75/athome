@@ -4,7 +4,7 @@ env:
 
 subsystem:
     hbmqtt:
-        enable: true
+        enable: false
         class: 'athome.subsystems.hbmqtt.Subsystem'
         config:
             listeners:
@@ -45,9 +45,10 @@ subsystem:
 
     tasks:
         enable: true
-        class: 'athome.subsystems.tasks.Subsystem'
+        class: 'athome.subsystems.tasks.TasksSubsystem'
         config:
-            tasks_dir: '/home/sandro/work/athome-tasks/src'
+            #tasks_dir: '/home/sandro/work/athome-tasks/src'
+            tasks_dir: 'adir'
             poll_interval: 10
 
     http:

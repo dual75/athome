@@ -2,16 +2,17 @@
 #
 # See the file LICENCE for copying permission.
 
-import os
-import sys
-import importlib
-import logging
 import asyncio
 import concurrent
+import importlib
 import inspect
+import logging
+import os
+import sys
 from functools import partial
 
 from athome.api.task import Task
+from athome.lib.management import managed
 from athome.lib.runnersupport import RunnerSupport, runner_main
 
 MODULE_PREFIX = '__athome_tasksmodule_'
@@ -32,9 +33,6 @@ class TaskRunner(RunnerSupport):
             await asyncio.sleep(self.config['poll_interval'])
 
     async def stop_task(self):
-        pass
-
-    async def on_input_line(self, command, args):
         pass
 
     async def _directory_scan(self):
@@ -149,6 +147,10 @@ class TaskRunner(RunnerSupport):
                 "%s not a plugin, missing coroutine 'engage'", fname)
             raise Exception('not a plugin module, missing coroutine "engage"')
         return result
+
+    async def list_tasks_request_handler(self, params):
+        LOGGER.debug('now returning dummy results')
+        return 1, 2, 3
 
 
 if __name__ == '__main__':

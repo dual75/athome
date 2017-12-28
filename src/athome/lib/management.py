@@ -2,19 +2,25 @@
 #
 # See the file LICENCE for copying permission.
 
+import asyncio
 import inspect
-
+import logging
+import functools
 import json
 
 from collections import namedtuple
-MethodInfo = namedtuple('MetohdInfo', ('orig_name', 'params'))
+MethodInfo = namedtuple('MethodInfo', ('orig_name', 'params'))
 
+LOGGER = logging.getLogger(__name__)
 
 def managed(name=None):
-    def decorated_function(function):
-        setattr(function, '__managed_method', name or f.__name__)
-        return function
-    return decorated_function
+
+    def wrap_coro(decorated_coro):
+        assert asyncio.iscoroutinefunction(decorated_coro)
+        decorated_coro._managed_method = name or func.__name__
+        return decorated_coro
+
+    return wrap_coro
 
 
 class ManagedObject:
@@ -32,15 +38,16 @@ class ManagedObject:
             if prop.fset:
                 self._write_properties.add(name)
         
-        meths = inspect.getmembers(self.obj, inspect.ismethod)
+        meths = inspect.getmembers(self.obj, asyncio.iscoroutinefunction)
         for name, meth in meths:
-            method_name = getattr(meth, '__managed_method', None)
-            if method_name:
+            LOGGER.debug('analyze method: %s', name)
+            managed_name = getattr(meth, 'managed', None)
+            if managed_name:
                 spec = inspect.getfullargspec(meth)
                 assert not spec.varargs, 'varargs not allowed in managed methods'
                 assert not spec.varkw, 'varkw not allowed in managed methods'
                 assert not spec.kwonlyargs, 'kwonlyargs not allowed in managed methods'
-                self.methods[method_name] = MethodInfo(name, spec.args[1:])
+                self.methods[managed_name] = MethodInfo(name, spec.args[1:])
 
     @property
     def read_properties(self):
@@ -62,47 +69,19 @@ class ManagedObject:
         assert method in self.methods
         return getattr(self.obj, self.methods[method].orig_name)(*args)
 
+    async def async_invoke(self, method, args=list()):
+        assert method in self.methods
+        return await getattr(self.obj, self.methods[method].orig_name)(*args)
+
     def json(self):
         result = dict()
-        descriptor = dict()
-        descriptor['class'] = self._managed_class.__name__
-        descriptor['read_properties'] = list(self._read_properties)
-        descriptor['write_properties'] = list(self._write_properties)
-        descriptor['methods'] = {name: method.params for name, method in self.methods.items()}
+        meta = dict()
+        meta['class'] = self._managed_class.__name__
+        meta['read_properties'] = list(self._read_properties)
+        meta['write_properties'] = list(self._write_properties)
+        meta['methods'] = {name: method.params for name, method in self.methods.items()}
 
-        result['__description'] = descriptor
+        result['__meta'] = meta
         for prop in self._read_properties:
             result[prop] = self.get_property(prop)
         return json.dumps(result)
-
-
-class A():
-
-    def __init__(self):
-        super().__init__()
-        self._val = 0
-        self.minchia = 3
-
-    @managed
-    def sayminchia(self):
-        print(self.minchia)
-
-    @property
-    def x(self):
-        return self._val
-
-    @x.setter
-    def x(self, value):
-        self._val = value
-
-    @x.deleter
-    def x(self):
-        del self._val
-
-if __name__ == '__main__':
-    a = A()
-    ma = ManagedObject(a)
-    print(ma.json())
-    print(ma.invoke('sayminchia'))
-
-

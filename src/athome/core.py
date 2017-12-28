@@ -126,10 +126,14 @@ class Core(SystemModule):
     def status(self):
         return self.state
 
-    @managed('stop')
-    def managed_stop(self):
+
+    async def managed_stop(self):
         self.stop()
 
-    @managed('shutdown')
-    def managed_shutdown(self):
+    managed_stop.managed = 'stop'
+
+
+    async def managed_shutdown(self):
         self.shutdown()
+
+    managed_shutdown.managed = 'shutdown'    

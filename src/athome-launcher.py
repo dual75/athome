@@ -143,6 +143,7 @@ async def main(loop, env, config):
         LOGGER.exception(ex)
     return result
 
+
 def cleanup_tasks(loop):
     tasks = asyncio.Task.all_tasks()
     single = asyncio.gather(*tasks, loop=loop)
@@ -151,6 +152,7 @@ def cleanup_tasks(loop):
         loop.run_until_complete(single)
     except asyncio.CancelledError:
         pass
+
 
 if WIN32:
     loop = asyncio.ProactorEventLoop()
