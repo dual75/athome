@@ -20,7 +20,8 @@ from .procsubsystem import COMMAND_START, \
     LINE_READY,\
     send_line,\
     parse_line,\
-    format_line
+    format_line,\
+    Line
 
 
 LOGGER = logging.getLogger(__name__)
@@ -60,7 +61,6 @@ class RunnerSupport:
             sys.stdout
         )
         self.running = True
-        self.pipe_out(LINE_READY)
         await self._event_loop()
 
     async def run_coro(self):
@@ -81,33 +81,28 @@ class RunnerSupport:
                 msg = await self.messages.get()            
                 if msg.type == MESSAGE_LINE:
                     LOGGER.debug('got line %s', msg.value)
-                    command, arg = parse_line(msg.value)
+                    req_id, message, payload = parse_line(msg.value)
 
-
-                    if arg and '__request_uuid' in arg:
-                        handler = getattr(self, '{}_request_handler'.format(command), None)
+                    if req_id:
+                        handler = getattr(self, '{}_request_handler'.format(message), None)
                         assert asyncio.iscoroutinefunction(handler)
-                        response = {
-                            '__request_uuid': arg['__request_uuid']
-                        }
-                        data = await handler(arg)
-                        response['payload'] = data
-                        self.pipe_out(format_line('response', data))
+                        data = await handler(payload)
+                        self.pipe_out(format_line(Line(req_id, 'response', data)) + '\n')
                     else:   
-                        handler = getattr(self, '{}_line_handler'.format(command), None)
+                        handler = getattr(self, '{}_message_handler'.format(message), None)
                         if handler:
                             assert asyncio.iscoroutinefunction(handler)
                             LOGGER.debug('invoking line handler %s', handler)
-                            await handler(arg)
+                            await handler(payload)
         finally:
             self._remove_pid_file()
 
-    async def start_line_handler(self, arg):
-        self.env = arg['env']
-        self.config = arg['subsystem_config']
+    async def start_message_handler(self, payload):
+        self.env = payload['env']
+        self.config = payload['subsystem_config']
         self._write_pid_file()
         self.executor.execute(self.run_coro())
-        self.pipe_out(LINE_STARTED)
+        self.pipe_out(format_line(Line(None, LINE_STARTED, None)) + '\n')
 
     def handle_stop_signal(self, signame):
         self.running = False

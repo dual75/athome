@@ -10,12 +10,16 @@ import json
 import types
 import uuid
 
+from collections import namedtuple
+
 from athome.subsystem import SubsystemModule
 
-LINE_READY = 'ready\n'
-LINE_EXITED = 'exit\n'
-LINE_STARTED = 'started\n'
-LINE_ERROR = 'error\n'
+Line = namedtuple('Line', ('req_id', 'message', 'payload'))
+
+LINE_READY = 'ready'
+LINE_EXITED = 'exit'
+LINE_STARTED = 'started'
+LINE_ERROR = 'error'
 
 NEW_LINE = 10
 
@@ -24,16 +28,17 @@ COMMAND_START = 'start'
 LOGGER = logging.getLogger(__name__)
 
 
-def format_line(command, arg):
-    message_arg = json.dumps(arg)
-    return '{} {}'.format(command, message_arg)
+def format_line(line):
+    message = {
+        'req_id': line.req_id,
+        'message': line.message,
+        'payload': line.payload
+        }
+    return json.dumps(message)
 
 def parse_line(line):
-    command, arg, chunks = line[:-1], None, line[:-1].split(' ', 1)
-    if len(chunks) > 1:
-        command, args = chunks[0], chunks[1]
-        arg = json.loads(args)
-    return command, arg
+    message = json.loads(line)
+    return Line(message['req_id'], message['message'], message['payload'])
 
 def send_line(stream, payload):
     stream.write((payload + '\n').encode('utf-8'))
@@ -61,6 +66,7 @@ class ProcSubsystem(SubsystemModule):
         self.module = module
         self.params = params
         self.request = None
+        self.req_semaphore = asyncio.Semaphore()
 
     def on_start(self):
         self.executor.execute(self.run())
@@ -90,24 +96,19 @@ class ProcSubsystem(SubsystemModule):
                     stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                     loop=self.loop)
 
-                data = await self.readline()
-                if data != LINE_READY:
-                    raise AssertionError("first expected line from child MUST be 'ready', was \'{}\'".format(data))
-
                 # initialize subprocess runner
                 message_config = {'env': self.env, 'subsystem_config': self.config}
-                self.sendline(COMMAND_START, message_config)
+                self.sendline(COMMAND_START, payload=message_config)
 
                 while True:
                     line = await self.readline()
                     if not line:
                         break
     
-                    command, arg = parse_line(line)
-                    handler_coro = getattr(self, '{}_line_handler'.format(command), None)
+                    handler_coro = getattr(self, '{}_line_handler'.format(line.message), None)
                     if handler_coro:
                         assert asyncio.iscoroutinefunction(handler_coro)
-                        await handler_coro(arg)
+                        await handler_coro(line.payload)
 
             if self.proc.returncode is None:
                 self.proc.kill()
@@ -124,32 +125,35 @@ class ProcSubsystem(SubsystemModule):
     async def started_line_handler(self, arg):
         self.started()
 
-    async def response_line_handler(self, arg):
-        res_id = arg['__request_uuid']
+    async def response_line_handler(self, payload):
         assert self.request and not self.request.done()
-        self.request.set_result(arg)
+        self.request.set_result(payload)
 
     async def readline(self):
         result = None
         data = await self.proc.stdout.readline()
         if data and data[-1] == NEW_LINE:
-            result = data.decode('utf-8')
+            sdata = data.decode('utf-8')
+            result = parse_line(sdata)
         return result
 
-    def sendline(self, request, arg=None):
-        send_line(self.proc.stdin, format_line(request, arg))
+    def sendline(self, message, payload=None, req_id=None):
+        send_line(self.proc.stdin, format_line(Line(req_id, message, payload)))
 
-    async def line_execute(self, command, arg=dict(), callback=None):
-        assert self.request is None
-        self.request = self.loop.create_future()
-        reqid = uuid.uuid4().hex
-        arg['__request_uuid'] = reqid
-        self.sendline(command, arg)
-        await self.request
-        result = self.request.get_result()
-        assert result['__request_uuid'] == reqid
-        self.request = None
-        return result['payload']
+    async def line_execute(self, command, payload=None, callback=None):
+        result = None
+        await self.req_semaphore.acquire()
+        try:
+            assert self.request is None
+            self.request = self.loop.create_future()
+            req_id = uuid.uuid4().hex
+            self.sendline(command, payload=payload, req_id=req_id)
+            result = await self.request
+            self.request = None
+            return result
+        finally:
+            self.req_semaphore.release()
+        return result
 
     def after_started(self):
         self.emit('{}_started'.format(self.name))
