@@ -35,4 +35,4 @@ class HbmqttRunner(RunnerSupport):
 
 if __name__ == '__main__':
     runner = HbmqttRunner()
-    runner_main(runner, True)
+    runner_main(runner, "hbmqttrunner.log", True)

@@ -2,27 +2,20 @@
 #
 # See the file LICENCE for copying permission.
 
-import os
-import sys
+import asyncio
 import json
 import logging
-import asyncio
+import os
 import signal
+import sys
 from functools import partial
 
 import athome
-from athome import Message, MESSAGE_SHUTDOWN, MESSAGE_LINE
-from athome.lib.lineprotocol import LineProtocol
+from athome import MESSAGE_LINE, MESSAGE_SHUTDOWN, Message
 from athome.lib.jobs import Executor
-
-from .procsubsystem import COMMAND_START, \
-    LINE_STARTED,\
-    LINE_READY,\
-    send_line,\
-    parse_line,\
-    format_line,\
-    Line
-
+from athome.lib.lineprotocol import (LINE_START, LINE_STARTED,
+                                     Line, LineProtocol, decode_line,
+                                     encode_line)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,23 +26,24 @@ class RunnerSupport:
         assert name is not None
         self.name = name
         self.loop = loop or asyncio.get_event_loop()
-        self.messages = asyncio.Queue()
+        self.messages = asyncio.Queue() 
         self.pipe_stream = None
         self.line_protocol = None
         self.env = None
         self.config = None
         self.executor = Executor(loop=self.loop)
+        self.running = False
         for signame in 'SIGINT', 'SIGTERM':
             self.loop.add_signal_handler(
                 getattr(signal, signame), 
-                partial(self.handle_stop_signal, signame)
+                partial(self._handle_stop_signal, signame)
                 )
         
     def pipe_in(self, line):
         self.messages.put_nowait(Message(MESSAGE_LINE, line, None))
 
-    def pipe_out(self, str_):
-        self.pipe_stream.write(str_.encode('utf-8'))
+    def sendline(self, message, payload=None, req_id=None):
+        self.pipe_stream.write(encode_line(Line(req_id, message, payload)))
 
     async def run(self):
         _, self.line_protocol = await self.loop.connect_read_pipe(
@@ -70,7 +64,6 @@ class RunnerSupport:
         pass
 
     def _error_callback(self, exc):
-        print("#### Now calling _error_callback on exc %s ####" % exc)
         self.outcome = LINE_ERROR
         self.running = False
         self.messages.put_nowait(Message(MESSAGE_SHUTDOWN, None))
@@ -78,53 +71,55 @@ class RunnerSupport:
     async def _event_loop(self):
         try:
             while self.running or not self.messages.empty():
-                msg = await self.messages.get()            
+                msg = await self.messages.get()           
                 if msg.type == MESSAGE_LINE:
                     LOGGER.debug('got line %s', msg.value)
-                    req_id, message, payload = parse_line(msg.value)
-
-                    if req_id:
-                        handler = getattr(self, '{}_request_handler'.format(message), None)
-                        assert asyncio.iscoroutinefunction(handler)
-                        data = await handler(payload)
-                        self.pipe_out(format_line(Line(req_id, 'response', data)) + '\n')
+                    line = msg.value
+                    if line is None:
+                        self.running = False
+                    elif line.req_id:
+                        await self._handle_request(line)
                     else:   
-                        handler = getattr(self, '{}_message_handler'.format(message), None)
-                        if handler:
-                            assert asyncio.iscoroutinefunction(handler)
-                            LOGGER.debug('invoking line handler %s', handler)
-                            await handler(payload)
-        finally:
-            self._remove_pid_file()
+                        await self._handle_message(line)
+            await self.executor.wait()
+        except:
+            LOGGER.exception('Error in event loop')
+            raise
+
+    async def _handle_request(self, line):
+        handler = getattr(self, '{}_request_handler'.format(line.message), None)
+        response_payload = {'error': None, 'error_tb': None, 'error_message': None,'payload': None}
+        try:
+            assert asyncio.iscoroutinefunction(handler)
+            handler_result = await handler(line.payload)
+            response_payload['response'] = handler_result
+        except Exception as ex:
+            tb = traceback.extract_tb(ex.__traceback__)
+            response_payload['error'] = str(ex)
+            response_payload['error_tb'] = traceback.format_list(tb)
+            response_payload['error_message'] = str(ex)
+        self.sendline('response', req_id=line.req_id, payload=response_payload)
+
+    async def _handle_message(self, line):
+        handler_name = '{}_message_handler'.format(line.message)
+        assert hasattr(self, handler_name)
+        handler = getattr(self, handler_name)
+        assert asyncio.iscoroutinefunction(handler)
+        LOGGER.debug('invoking line handler %s', handler)
+        await handler(line.payload)
 
     async def start_message_handler(self, payload):
         self.env = payload['env']
         self.config = payload['subsystem_config']
-        self._write_pid_file()
         self.executor.execute(self.run_coro())
-        self.pipe_out(format_line(Line(None, LINE_STARTED, None)) + '\n')
+        self.sendline(LINE_STARTED)
 
-    def handle_stop_signal(self, signame):
+    def _handle_stop_signal(self, signame):
         self.running = False
 
-    async def on_input_line(self, command, arg):
-        pass
 
-    def _pid_file(self):
-        return os.path.join(self.env['run_dir'], '{}_subsystem.pid'.format(self.name))
-
-    def _write_pid_file(self):
-        with open(self._pid_file(), 'w') as file_out:
-            file_out.write('{}'.format(os.getpid()))
-    
-    def _remove_pid_file(self):
-        fname = self._pid_file()
-        if os.path.exits(fname) and os.access(fname, os.W_OK):
-            os.unlink(fname)
-
-
-def runner_main(runner, debug=False):
-    logging.basicConfig(level=debug and logging.DEBUG or logging.INFO)
+def runner_main(runner, logfile, debug=False):
+    logging.basicConfig(level=debug and logging.DEBUG or logging.INFO, filename=logfile)
     os.setpgid(os.getpid(), os.getpid())
 
     loop = asyncio.get_event_loop()
@@ -137,4 +132,3 @@ def runner_main(runner, debug=False):
         LOGGER.exception('Error in runner')
         sys.exit(athome.PROCESS_OUTCOME_KO)
     sys.exit(athome.PROCESS_OUTCOME_KO)
-    

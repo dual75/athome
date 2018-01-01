@@ -155,4 +155,4 @@ class TaskRunner(RunnerSupport):
 
 if __name__ == '__main__':
     runner = TaskRunner()
-    runner_main(runner, True)
+    runner_main(runner, "taskrunner.log", False)
