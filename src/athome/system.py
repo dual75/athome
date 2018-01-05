@@ -102,7 +102,8 @@ class SystemModule():
         self.config = None
         self.executor = Executor(self.loop)
         self.message_queue = asyncio.Queue()
-        self.message_job = asyncio.ensure_future(self._wrap_message_cycle(), loop=self.loop)
+        self.message_task = asyncio.ensure_future(self._wrap_message_cycle(), loop=self.loop)
+        self._logger = None
 
     async def _wrap_message_cycle(self):
         await self.message_cycle()
@@ -153,6 +154,7 @@ class SystemModule():
 
     def _on_stop(self):
         """Before 'stop' callback"""
+        
         self.on_stop()
         self.message_queue.put_nowait(Message(MESSAGE_STOP, None, None))
 
@@ -179,7 +181,7 @@ class SystemModule():
         try:
             self.on_shutdown()
         except:
-            LOGGER.exception("Subsystem %s shutdown in error: %s", self.name)
+            LOGGER.exception("Subsystem %s shutdown in error", self.name)
 
 
     def on_shutdown(self):
@@ -197,3 +199,27 @@ class SystemModule():
         """Before fail placeholder"""
 
         pass
+
+    def _find_logger(self):
+        pass
+
+    def _log(self, level, msg, *args, **kwargs):
+        assert level and isinstance(level, int)
+        assert msg and isinstance(msg, str)
+        logger = self._find_logger()
+        if logger:
+            logger.log('{}.{}'.format(__name__, self.__class__.__name__), level, msg, *args, **kwargs)
+    
+    def debug(self, msg, *args, **kwargs):
+        self._log(logging.DEBUG, msg, *args, **kwargs)
+    
+    def info(self, msg, *args, **kwargs):
+        self._log(logging.INFO, msg, *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        self._log(logging.WARNING, msg, *args, **kwargs)
+
+    def error(self, msg, *args, **kwargs):
+        self._log(logging.ERROR, msg, *args, **kwargs)
+
+

@@ -14,6 +14,8 @@ LINE_START = 'start'
 LINE_STARTED = 'started'
 LINE_ERROR = 'error'
 
+TEXT_ENCODING = 'utf-8'
+
 NEW_LINE = 10
 
 LOGGER = logging.getLogger(__name__)
@@ -25,11 +27,11 @@ def encode_line(line):
         'message': line.message,
         'payload': line.payload
     }
-    return (json.dumps(message) + '\n').encode('utf-8')
+    return (json.dumps(message) + '\n').encode(TEXT_ENCODING)
 
 
 def decode_line(text_line):
-    message = json.loads(text_line.decode('utf-8'))
+    message = json.loads(text_line.decode(TEXT_ENCODING))
     return Line(message['req_id'], message['message'], message['payload'])
 
 

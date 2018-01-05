@@ -22,6 +22,7 @@ import athome
 from athome.core import Core
 
 DEFAULT_CONFIG = './config.yml'
+
 LOGGER = logging.getLogger(__name__)
 
 WIN32 = sys.platform == 'win32'
@@ -40,8 +41,6 @@ def init_env(config_file):
         raise FileNotFoundError("Configuration file {} not accessible".
                                     format(config_file))
     config = yaml.safe_load(open(config_file, 'rb'))
-    logconf = config['logging']
-    logging.config.dictConfig(logconf)
     env = process_env(config['env'])
     return env, config
 
@@ -87,7 +86,6 @@ def ask_exit(signame, core):
     signame: name of the signal
     """
 
-    LOGGER.info("got signal %s exit", signame)
     core.shutdown()
 
 
@@ -104,22 +102,16 @@ def install_signal_handlers(core):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description='Manage @home server', prog='engine')
-    parser.add_argument('-d', '--detach', action='store_true',
-                        help='Run in background')
-    parser.add_argument('-c', '--config', action='store',
-                        help='Specify configuration file',
-                        default=DEFAULT_CONFIG)
-    parser.add_argument('-v', '--verbosity',
-                        action='store_true', help='Turn on verbosity')
+    parser = argparse.ArgumentParser(description='Manage @home server', prog='engine')
+    parser.add_argument('-d', '--detach', action='store_true', help='Run in background')
+    parser.add_argument('-c', '--config', action='store', help='Specify configuration file', default=DEFAULT_CONFIG)
+    parser.add_argument('-v', '--verbosity', action='store_true', help='Turn on verbosity')
     return parser.parse_args()
 
 
 def do_fork():
     pid = os.fork()
     if pid == -1:
-        LOGGER.error('fork error')
         sys.exit(-1)
     elif pid != 0:
         sys.exit(0)
@@ -137,10 +129,7 @@ async def main(loop, env, config):
         await core.run_forever()
         result = athome.PROCESS_OUTCOME_OK
     except KeyboardInterrupt as ex:
-        LOGGER.info("Caught CTRL-C")
         result = athome.PROCESS_OUTCOME_OK
-    except Exception as ex:
-        LOGGER.exception(ex)
     return result
 
 

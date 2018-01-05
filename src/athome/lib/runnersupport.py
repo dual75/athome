@@ -20,6 +20,16 @@ from athome.lib.lineprotocol import (LINE_START, LINE_STARTED,
 LOGGER = logging.getLogger(__name__)
 
 
+class LineLoggingHandler(logging.Handler):
+
+    def __init__(self, stream):
+        super().__init__()
+        self._stream = stream
+    
+    def emit(self, record):
+         self._stream.write(encode_line(Line(None, 'log', record))
+
+
 class RunnerSupport:
 
     def __init__(self, name, loop=None):
@@ -119,7 +129,8 @@ class RunnerSupport:
 
 
 def runner_main(runner, logfile, debug=False):
-    logging.basicConfig(level=debug and logging.DEBUG or logging.INFO, filename=logfile)
+    logging.basicConfig(level=debug and logging.DEBUG or logging.INFO, 
+        handlers=[LineLoggingHandler(runner.pipe_stream)])
     os.setpgid(os.getpid(), os.getpid())
 
     loop = asyncio.get_event_loop()

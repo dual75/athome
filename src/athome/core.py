@@ -77,7 +77,7 @@ class Core(SystemModule):
         """Execute run coroutine until stopped"""
         
         self.start()
-        await self.message_job
+        await self.message_task
 
     async def message_cycle(self):
         message = Message(MESSAGE_NONE, None, None)

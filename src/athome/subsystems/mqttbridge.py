@@ -14,8 +14,6 @@ from athome import MESSAGE_EVT
 from athome.subsystem import SubsystemModule
 from athome.lib.jobs import Executor
 
-LOGGER = logging.getLogger(__name__)
-
 
 class Republisher():
     """
@@ -88,19 +86,19 @@ class Republisher():
         pass
 
     def _after_stop(self):
-        LOGGER.info('republisher for %s closed', self.url)
+        self.info('republisher for %s closed', self.url)
 
     async def _listen(self):
-        LOGGER.debug('republisher for %s starting', self.url)
+        self.debug('republisher for %s starting', self.url)
         try:
             self.client = MQTTClient()
             await self.client.connect(self.url)
             if self.topics:
                 await self.client.subscribe(self.topics)
-                LOGGER.debug('republisher for %s listening', self.url)
+                self.debug('republisher for %s listening', self.url)
                 while True:
                     message = await self.client.deliver_message()
-                    LOGGER.debug("message on %s",
+                    self.debug("message on %s",
                              message.publish_packet.variable_header.topic_name)
                     await self.bridge.forward(message)
         except asyncio.CancelledError:
@@ -108,12 +106,12 @@ class Republisher():
             if self.client.session:
                 await self.client.disconnect()
                 self.client = None
-            LOGGER.debug("republisher list_task for %s canceled", self.url)
+            self.debug("republisher list_task for %s canceled", self.url)
         except ConnectException as ex:
-            LOGGER.exception('can\'t connect republisher, stopping bridge')
+            self.exception('can\'t connect republisher, stopping bridge')
             self.fail(ex)
         except Exception as ex:
-            LOGGER.exception('exception for %s in error, stopping bridge', 
+            self.exception('exception for %s in error, stopping bridge', 
                              self.url)
             self.fail(ex)
         await self.excutor.close()
@@ -222,7 +220,7 @@ class Subsystem(SubsystemModule):
                 republisher.start()
                 self.republishers.append(republisher)
         except ClientException as ex:
-            LOGGER.error("Client exception: %s", ex)
+            self.error("Client exception: %s", ex)
             self.fail()
 
     @staticmethod
@@ -261,5 +259,5 @@ class Subsystem(SubsystemModule):
         """Forward a message on all republishers but original one"""
 
         for republisher in self.republishers:
-            LOGGER.debug('forward to %s', republisher.url)
+            self.debug('forward to %s', republisher.url)
             await republisher.forward(message)

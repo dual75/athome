@@ -2,16 +2,11 @@
 #
 # See the file LICENCE for copying permission.
 
-import os
-import sys
-import asyncio
 import logging
-import json
 
 from hbmqtt.broker import Broker
 
 from athome.lib.runnersupport import RunnerSupport, runner_main
-from athome.lib.lineprotocol import LineProtocol
 
 LOGGER = logging.getLogger(__name__)
 

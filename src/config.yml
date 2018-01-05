@@ -44,7 +44,7 @@ subsystem:
                     ]
 
     tasks:
-        enable: true
+        enable: false
         class: 'athome.subsystems.tasks.TasksSubsystem'
         config:
             #tasks_dir: '/home/sandro/work/athome-tasks/src'
@@ -58,50 +58,52 @@ subsystem:
             addr: 'localhost'
             port: 8080
 
-# logging configuration
+    logging:
+        enable: true
+        class: 'athome.subsystems.logging.LoggingSubsystem'
+        config:
+            version: 1
+            disable_existing_loggers: true
+        
+            root:
+                level: 'INFO'
+                handlers: ['console_handler']
+                formatter: 'standard'
+                
+            formatters:
+                standard:
+                    format: "%(name)s %(asctime)s [%(levelname)s] %(message)s"
+        
+            handlers:
+                console_handler:
+                    class: 'logging.StreamHandler'
+                    level: 'DEBUG'
+                    formatter: 'standard'
+                    stream: 'ext://sys.stdout'
+        
+                syslog_handler:
+                    class: 'logging.handlers.SysLogHandler'
+                    level: 'INFO'
+                    formatter: 'standard'
+        
+            loggers: 
+                asyncio:
+                    level: 'INFO'
+                    handlers: [ 'console_handler']
+                transitions:
+                    level: 'WARNING'
+                    handlers: ['console_handler']
+                athome.subsystem.mqttbridge:
+                    level: 'DEBUG'
+                    handlers: ['console_handler']
+                athome.subsystem.plugins:
+                    level: 'DEBUG'
+                    handlers: ['console_handler']
+                hbmqtt: 
+                    level: 'WARNING'
+                    handlers: ['console_handler']
+        
+        
+# asyncio configuration
 asyncio:
     debug: true
-
-logging:
-    version: 1
-    disable_existing_loggers: true
-
-    root:
-        level: 'DEBUG'
-        handlers: ['console_handler']
-        formatter: 'standard'
-        
-    formatters:
-        standard:
-            format: "%(name)s %(asctime)s [%(levelname)s] %(message)s"
-
-    handlers:
-        console_handler:
-            class: 'logging.StreamHandler'
-            level: 'DEBUG'
-            formatter: 'standard'
-            stream: 'ext://sys.stdout'
-
-        syslog_handler:
-            class: 'logging.handlers.SysLogHandler'
-            level: 'INFO'
-            formatter: 'standard'
-
-    loggers: 
-        asyncio:
-            level: 'INFO'
-            handlers: [ 'console_handler']
-        transitions:
-            level: 'WARNING'
-            handlers: ['console_handler']
-        athome.subsystem.mqttbridge:
-            level: 'DEBUG'
-            handlers: ['console_handler']
-        athome.subsystem.plugins:
-            level: 'DEBUG'
-            handlers: ['console_handler']
-        hbmqtt: 
-            level: 'WARNING'
-            handlers: ['console_handler']
-
-
